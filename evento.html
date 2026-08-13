@@ -506,6 +506,30 @@
   .badge-subido { background: var(--dorado); color: white; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
   .badge-pendiente { background: var(--gris-borde); color: var(--gris-texto); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
 
+  /* FORM AGREGAR MIEMBRO */
+  .campo-form { margin-bottom: 14px; }
+  .campo-form label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gris-texto);
+    margin-bottom: 6px;
+  }
+  .campo-form input, .campo-form select {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid var(--gris-borde);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    color: var(--azul);
+    background: var(--blanco);
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+  }
+  .campo-form input:focus, .campo-form select:focus { border-color: var(--azul); }
+
   /* MODAL ADMIN */
   .modal-overlay {
     display: none;
@@ -718,6 +742,7 @@
         <p class="admin-subtitulo" id="adminSubtitulo"></p>
       </div>
       <div style="display:flex;gap:8px">
+        <button class="btn-secundario btn" style="width:auto;padding:8px 14px;font-size:12px" onclick="abrirModalAgregarMiembro()">➕ Agregar miembro</button>
         <button class="btn-secundario btn" style="width:auto;padding:8px 14px;font-size:12px" onclick="exportarCSV()">⬇ Exportar CSV</button>
         <button class="btn-secundario btn" style="width:auto;padding:8px 14px;font-size:12px" onclick="mostrarStep(1)">Salir</button>
       </div>
@@ -751,6 +776,40 @@
       <a id="modalComprobante" href="#" target="_blank" class="btn-link" style="display:none">📎 Ver comprobante</a>
       <button class="btn btn-primario" id="btnValidar" onclick="validarAlumna()" style="display:none">✓ Marcar como validada</button>
       <button class="btn btn-secundario" onclick="document.getElementById('modalOverlay').classList.remove('activo')" style="margin-top:10px">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- MODAL AGREGAR MIEMBRO -->
+  <div class="modal-overlay" id="modalAgregarOverlay" onclick="if(event.target===this) cerrarModalAgregarMiembro()">
+    <div class="modal" style="position:relative">
+      <span class="modal-cerrar" onclick="cerrarModalAgregarMiembro()">✕</span>
+      <p class="modal-nombre" style="margin-bottom:16px">Agregar miembro</p>
+
+      <div class="campo-form">
+        <label for="nuevoMiembroGrupo">Grupo</label>
+        <select id="nuevoMiembroGrupo"></select>
+      </div>
+      <div class="campo-form">
+        <label for="nuevoMiembroNombre">Apellido y nombre</label>
+        <input type="text" id="nuevoMiembroNombre" placeholder="Ej: García, Juan">
+      </div>
+      <div class="campo-form" id="campoNuevoDni" style="display:none">
+        <label for="nuevoMiembroDni">DNI</label>
+        <input type="text" id="nuevoMiembroDni" placeholder="Ej: 40123456">
+      </div>
+      <div class="campo-form" id="campoNuevoRespNombre" style="display:none">
+        <label for="nuevoMiembroRespNombre">Nombre del responsable</label>
+        <input type="text" id="nuevoMiembroRespNombre" placeholder="Ej: García, María">
+      </div>
+      <div class="campo-form" id="campoNuevoRespTelefono" style="display:none">
+        <label for="nuevoMiembroRespTelefono">Teléfono del responsable</label>
+        <input type="text" id="nuevoMiembroRespTelefono" placeholder="Ej: 11 5555-5555">
+      </div>
+
+      <div class="error-msg" id="errorNuevoMiembro"></div>
+
+      <button class="btn btn-primario" id="btnGuardarMiembro" onclick="guardarNuevoMiembro()">Agregar</button>
+      <button class="btn btn-secundario" onclick="cerrarModalAgregarMiembro()" style="margin-top:10px">Cancelar</button>
     </div>
   </div>
 
@@ -1305,6 +1364,83 @@
     document.getElementById('statTotal').textContent = todosMiembros.length;
     document.getElementById('statSubido').textContent = totalSubido + totalValidado;
     document.getElementById('statValidado').textContent = totalValidado;
+  }
+
+  // ===== AGREGAR MIEMBRO =====
+  // Pide los mismos campos que se definieron para el evento en
+  // "Crear evento" (campos_requeridos), más el grupo y el nombre
+  // (que siempre son obligatorios).
+  function abrirModalAgregarMiembro() {
+    const select = document.getElementById('nuevoMiembroGrupo');
+    select.innerHTML = grupos.map(g => `<option value="${g.id}">${g.nombre}</option>`).join('');
+
+    const campos = eventoData.campos_requeridos || {};
+    document.getElementById('campoNuevoDni').style.display = campos.dni !== false ? '' : 'none';
+    document.getElementById('campoNuevoRespNombre').style.display = campos.responsable_nombre !== false ? '' : 'none';
+    document.getElementById('campoNuevoRespTelefono').style.display = campos.responsable_telefono !== false ? '' : 'none';
+
+    document.getElementById('nuevoMiembroNombre').value = '';
+    document.getElementById('nuevoMiembroDni').value = '';
+    document.getElementById('nuevoMiembroRespNombre').value = '';
+    document.getElementById('nuevoMiembroRespTelefono').value = '';
+    document.getElementById('errorNuevoMiembro').style.display = 'none';
+
+    document.getElementById('modalAgregarOverlay').classList.add('activo');
+  }
+
+  function cerrarModalAgregarMiembro() {
+    document.getElementById('modalAgregarOverlay').classList.remove('activo');
+  }
+
+  async function guardarNuevoMiembro() {
+    const grupoId = document.getElementById('nuevoMiembroGrupo').value;
+    const nombre = document.getElementById('nuevoMiembroNombre').value.trim();
+    const errorEl = document.getElementById('errorNuevoMiembro');
+    errorEl.style.display = 'none';
+
+    if (!grupoId || !nombre) {
+      errorEl.textContent = 'Completá el grupo y el nombre.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    const btn = document.getElementById('btnGuardarMiembro');
+    btn.disabled = true;
+    btn.textContent = 'Agregando...';
+
+    try {
+      const body = {
+        grupo_id: grupoId,
+        apellido_nombre: nombre,
+        dni: document.getElementById('nuevoMiembroDni').value.trim() || null,
+        responsable_nombre: document.getElementById('nuevoMiembroRespNombre').value.trim() || null,
+        responsable_telefono: document.getElementById('nuevoMiembroRespTelefono').value.trim() || null,
+      };
+
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/miembros`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${tokenAdmin}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) throw new Error('No se pudo agregar el miembro.');
+      const [miembroCreado] = await res.json();
+
+      todosMiembros.push(miembroCreado);
+      renderAdmin();
+      cerrarModalAgregarMiembro();
+    } catch (e) {
+      errorEl.textContent = e.message || 'Hubo un error al agregar el miembro.';
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Agregar';
+    }
   }
 
   function abrirModalAdmin(miembroId) {
