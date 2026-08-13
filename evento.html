@@ -654,13 +654,45 @@
   <div class="step" id="step2">
     <div class="nav-back" onclick="volverA(1)">← Cambiar grupo</div>
     <p class="seccion-titulo" id="tituloGrupo"></p>
-    <p class="seccion-subtitulo">Buscá a tu hija y tocá su nombre.</p>
+    <p class="seccion-subtitulo">Buscá el nombre en la lista y tocalo.</p>
     <div class="card">
       <div class="buscador">
         <span class="buscador-icon">🔍</span>
         <input type="text" id="buscadorInput" placeholder="Buscar por apellido..." oninput="filtrarAlumnas()">
       </div>
       <div class="lista-alumnas" id="listaAlumnas"></div>
+      <div class="nav-back" style="margin:14px 0 0;justify-content:center;width:100%" onclick="abrirModalSumarme()">➕ No está en la lista, sumarla</div>
+    </div>
+  </div>
+
+  <!-- MODAL SUMARME (familia agrega un miembro nuevo) -->
+  <div class="modal-overlay" id="modalSumarmeOverlay" onclick="if(event.target===this) cerrarModalSumarme()">
+    <div class="modal" style="position:relative">
+      <span class="modal-cerrar" onclick="cerrarModalSumarme()">✕</span>
+      <p class="modal-nombre" style="margin-bottom:4px">Sumar a la lista</p>
+      <p class="modal-grupo" id="sumarmeGrupoNombre"></p>
+
+      <div class="campo-form">
+        <label for="sumarmeNombre">Apellido y nombre</label>
+        <input type="text" id="sumarmeNombre" placeholder="Ej: García, Juan">
+      </div>
+      <div class="campo-form" id="campoSumarmeDni" style="display:none">
+        <label for="sumarmeDni">DNI</label>
+        <input type="text" id="sumarmeDni" placeholder="Ej: 40123456">
+      </div>
+      <div class="campo-form" id="campoSumarmeRespNombre" style="display:none">
+        <label for="sumarmeRespNombre">Nombre del responsable</label>
+        <input type="text" id="sumarmeRespNombre" placeholder="Ej: García, María">
+      </div>
+      <div class="campo-form" id="campoSumarmeRespTelefono" style="display:none">
+        <label for="sumarmeRespTelefono">Teléfono del responsable</label>
+        <input type="text" id="sumarmeRespTelefono" placeholder="Ej: 11 5555-5555">
+      </div>
+
+      <div class="error-msg" id="errorSumarme"></div>
+
+      <button class="btn btn-primario" id="btnSumarme" onclick="guardarSumarme()">Sumar y continuar</button>
+      <button class="btn btn-secundario" onclick="cerrarModalSumarme()" style="margin-top:10px">Cancelar</button>
     </div>
   </div>
 
@@ -1022,6 +1054,84 @@
     renderAlumnas(filtradas);
   }
 
+  // ===== SUMARME (la familia agrega un miembro que no está en la lista) =====
+  function abrirModalSumarme() {
+    document.getElementById('sumarmeGrupoNombre').textContent = grupoSeleccionado ? grupoSeleccionado.nombre : '';
+
+    const campos = eventoData.campos_requeridos || {};
+    document.getElementById('campoSumarmeDni').style.display = campos.dni !== false ? '' : 'none';
+    document.getElementById('campoSumarmeRespNombre').style.display = campos.responsable_nombre !== false ? '' : 'none';
+    document.getElementById('campoSumarmeRespTelefono').style.display = campos.responsable_telefono !== false ? '' : 'none';
+
+    document.getElementById('sumarmeNombre').value = '';
+    document.getElementById('sumarmeDni').value = '';
+    document.getElementById('sumarmeRespNombre').value = '';
+    document.getElementById('sumarmeRespTelefono').value = '';
+    document.getElementById('errorSumarme').style.display = 'none';
+
+    document.getElementById('modalSumarmeOverlay').classList.add('activo');
+  }
+
+  function cerrarModalSumarme() {
+    document.getElementById('modalSumarmeOverlay').classList.remove('activo');
+  }
+
+  async function guardarSumarme() {
+    const nombre = document.getElementById('sumarmeNombre').value.trim();
+    const errorEl = document.getElementById('errorSumarme');
+    errorEl.style.display = 'none';
+
+    if (!nombre) {
+      errorEl.textContent = 'Completá el nombre.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (!grupoSeleccionado) {
+      errorEl.textContent = 'No hay un grupo seleccionado.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    const btn = document.getElementById('btnSumarme');
+    btn.disabled = true;
+    btn.textContent = 'Sumando...';
+
+    try {
+      const body = {
+        grupo_id: grupoSeleccionado.id,
+        apellido_nombre: nombre,
+        dni: document.getElementById('sumarmeDni').value.trim() || null,
+        responsable_nombre: document.getElementById('sumarmeRespNombre').value.trim() || null,
+        responsable_telefono: document.getElementById('sumarmeRespTelefono').value.trim() || null,
+      };
+
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/miembros`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${tokenFamilia}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) throw new Error('No se pudo agregar a la lista.');
+      const [miembroCreado] = await res.json();
+
+      alumnas.push(miembroCreado);
+      cerrarModalSumarme();
+      // Va directo a la pantalla de confirmación con el miembro recién creado.
+      seleccionarAlumna(miembroCreado.id);
+    } catch (e) {
+      errorEl.textContent = e.message || 'Hubo un error al agregar.';
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sumar y continuar';
+    }
+  }
+
   function seleccionarAlumna(id) {
     alumnaSeleccionada = alumnas.find(a => a.id === id);
     archivoSelec = null;
@@ -1161,7 +1271,7 @@
       // 3. Mostrar éxito
       const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
       document.getElementById('exitoDetalle').innerHTML = `
-        <strong>Alumna:</strong> ${alumnaSeleccionada.apellido_nombre}<br>
+        <strong>Miembro:</strong> ${alumnaSeleccionada.apellido_nombre}<br>
         <strong>Grupo:</strong> ${grupoSeleccionado.nombre}<br>
         <strong>Fiesta:</strong> ${eventoData.nombre}<br>
         <strong>Fecha:</strong> ${fecha}
