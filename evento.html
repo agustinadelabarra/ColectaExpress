@@ -760,13 +760,17 @@
   const SUPABASE_URL = 'https://yxtxegzpwhhcdodvmnyl.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4dHhlZ3pwd2hoY2RvZHZtbnlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MTk1MTMsImV4cCI6MjA5NzI5NTUxM30.hWAokkfd-sEjrHXLcff2MQx3rMTrliZmtNA9GFFF59s';
   const COMUNIDAD_ID = '22222222-2222-2222-2222-222222222222';
-  // El evento se lee de la URL. Soporta dos formas:
-  // - ?e=slug (nueva, corta, la que se comparte de acá en más)
+  // El evento se lee de la URL. Soporta tres formas:
+  // - /e/slug (nueva, corta, la que se comparte de acá en más — es un
+  //   rewrite de Netlify, así que el slug viaja en el PATH, no en la
+  //   query string, y hay que leerlo de location.pathname)
+  // - ?e=slug (por si se accede directo a evento.html con query)
   // - ?evento=ID (vieja, UUID completo, se sigue soportando para
   //   no romper links que ya estén circulando)
   // Si no viene ninguno, usamos Michael Fest como default.
   const params = new URLSearchParams(window.location.search);
-  const EVENTO_SLUG = params.get('e');
+  const pathMatch = window.location.pathname.match(/\/e\/([^/?#]+)/);
+  const EVENTO_SLUG = (pathMatch && decodeURIComponent(pathMatch[1])) || params.get('e');
   let EVENTO_ID = params.get('evento') || (EVENTO_SLUG ? null : '66666666-6666-6666-6666-666666666666');
 
   // Nivel 1 de seguridad: en vez de usar SUPABASE_KEY sola como
