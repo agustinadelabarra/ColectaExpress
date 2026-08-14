@@ -710,6 +710,7 @@
       <p class="detalle-nombre" id="detalleNombre"></p>
       <p class="detalle-grupo" id="detalleGrupo"></p>
       <div class="detalle-info" id="detalleInfo"></div>
+      <div id="detalleFaltantes" style="margin-bottom:6px"></div>
 
       <div id="comentariosArea" style="display:none;margin-bottom:14px">
         <label style="font-size:13px;font-weight:600;color:var(--gris-texto);display:block;margin-bottom:6px">Comentarios (opcional)</label>
@@ -1140,11 +1141,34 @@
     document.getElementById('detalleNombre').textContent = alumnaSeleccionada.apellido_nombre;
     document.getElementById('detalleGrupo').textContent = grupoSeleccionado.nombre;
 
+    // Los datos que ya están cargados (por la coordinadora o por CSV)
+    // se muestran de solo lectura. Los que falten y sean requeridos
+    // para el evento, se piden acá mismo antes de confirmar.
     let infoHtml = '';
-    if (campos.responsable_nombre !== false) infoHtml += `<strong>Responsable:</strong> ${alumnaSeleccionada.responsable_nombre || '—'}<br>`;
-    if (campos.responsable_telefono !== false) infoHtml += `<strong>Teléfono:</strong> ${alumnaSeleccionada.responsable_telefono || '—'}<br>`;
-    if (campos.dni !== false) infoHtml += `<strong>DNI:</strong> ${alumnaSeleccionada.dni || '—'}`;
+    let faltantesHtml = '';
+    if (campos.responsable_nombre !== false) {
+      if (alumnaSeleccionada.responsable_nombre) {
+        infoHtml += `<strong>Responsable:</strong> ${alumnaSeleccionada.responsable_nombre}<br>`;
+      } else {
+        faltantesHtml += `<div class="campo-form"><label for="faltanteRespNombre">Nombre del responsable</label><input type="text" id="faltanteRespNombre" placeholder="Ej: García, María"></div>`;
+      }
+    }
+    if (campos.responsable_telefono !== false) {
+      if (alumnaSeleccionada.responsable_telefono) {
+        infoHtml += `<strong>Teléfono:</strong> ${alumnaSeleccionada.responsable_telefono}<br>`;
+      } else {
+        faltantesHtml += `<div class="campo-form"><label for="faltanteRespTelefono">Teléfono del responsable</label><input type="text" id="faltanteRespTelefono" placeholder="Ej: 11 5555-5555"></div>`;
+      }
+    }
+    if (campos.dni !== false) {
+      if (alumnaSeleccionada.dni) {
+        infoHtml += `<strong>DNI:</strong> ${alumnaSeleccionada.dni}`;
+      } else {
+        faltantesHtml += `<div class="campo-form"><label for="faltanteDni">DNI</label><input type="text" id="faltanteDni" placeholder="Ej: 40123456"></div>`;
+      }
+    }
     document.getElementById('detalleInfo').innerHTML = infoHtml;
+    document.getElementById('detalleFaltantes').innerHTML = faltantesHtml;
 
     const comentariosArea = document.getElementById('comentariosArea');
     const comentariosInput = document.getElementById('comentariosInput');
@@ -1258,11 +1282,49 @@
     if (necesitaAdjunto && !archivoSelec) return;
     if (!alumnaSeleccionada) return;
 
+    // Si faltaban datos del miembro (responsable, teléfono, DNI), se
+    // piden acá mismo antes de confirmar — son obligatorios si el
+    // campo está marcado como requerido para el evento.
+    const faltanteRespNombre = document.getElementById('faltanteRespNombre');
+    const faltanteRespTelefono = document.getElementById('faltanteRespTelefono');
+    const faltanteDni = document.getElementById('faltanteDni');
+    const datosMiembro = {};
+    if (faltanteRespNombre) {
+      const v = faltanteRespNombre.value.trim();
+      if (!v) { mostrarError('Falta el nombre del responsable.'); return; }
+      datosMiembro.responsable_nombre = v;
+    }
+    if (faltanteRespTelefono) {
+      const v = faltanteRespTelefono.value.trim();
+      if (!v) { mostrarError('Falta el teléfono del responsable.'); return; }
+      datosMiembro.responsable_telefono = v;
+    }
+    if (faltanteDni) {
+      const v = faltanteDni.value.trim();
+      if (!v) { mostrarError('Falta el DNI.'); return; }
+      datosMiembro.dni = v;
+    }
+
     document.getElementById('btnConfirmar').disabled = true;
     document.getElementById('loading').style.display = 'block';
     document.getElementById('errorMsg').style.display = 'none';
 
     try {
+      // 0. Completar los datos del miembro que faltaban, si los hubo
+      if (Object.keys(datosMiembro).length) {
+        const resMiembro = await fetch(`${SUPABASE_URL}/rest/v1/miembros?id=eq.${alumnaSeleccionada.id}`, {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${tokenFamilia}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(datosMiembro)
+        });
+        if (!resMiembro.ok) throw new Error('No se pudieron guardar los datos del responsable.');
+        Object.assign(alumnaSeleccionada, datosMiembro);
+      }
+
       let adjuntoUrl = null;
 
       if (necesitaAdjunto) {
