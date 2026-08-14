@@ -185,12 +185,12 @@
 
       <label>Comunidad</label>
       <select id="comunidadSelect" onchange="onComunidadChange()">
-        <option value="">Sin comunidad / evento independiente</option>
+        <option value="" disabled selected>Elegí una comunidad</option>
       </select>
 
-      <div id="independienteBox">
-        <label>Nombre del organizador</label>
-        <input type="text" id="organizadorNombre" placeholder="Ej: Comisión de padres 5° grado">
+      <div id="nuevaComunidadBox" class="oculto">
+        <label>Nombre de la nueva comunidad</label>
+        <input type="text" id="nuevaComunidadNombre" placeholder="Ej: Michael Ham Vicente López">
       </div>
     </div>
 
@@ -271,6 +271,10 @@
         opt.textContent = c.nombre;
         select.appendChild(opt);
       });
+      const optNueva = document.createElement('option');
+      optNueva.value = '__nueva__';
+      optNueva.textContent = '+ Nueva comunidad';
+      select.appendChild(optNueva);
       onComunidadChange();
     } catch (e) {
       console.error('No se pudieron cargar las comunidades', e);
@@ -278,8 +282,8 @@
   }
 
   function onComunidadChange() {
-    const esIndependiente = !document.getElementById('comunidadSelect').value;
-    document.getElementById('independienteBox').style.display = esIndependiente ? 'block' : 'none';
+    const esNueva = document.getElementById('comunidadSelect').value === '__nueva__';
+    document.getElementById('nuevaComunidadBox').classList.toggle('oculto', !esNueva);
   }
 
   let grupoContador = 0;
@@ -473,7 +477,15 @@
     const gruposBoxes = document.querySelectorAll('.grupo-box');
     if (!gruposBoxes.length) { mostrarErrorForm('Agregá al menos un grupo.'); return; }
 
-    const comunidadId = document.getElementById('comunidadSelect').value || null;
+    const comunidadSelectValue = document.getElementById('comunidadSelect').value;
+    if (!comunidadSelectValue) { mostrarErrorForm('Elegí una comunidad.'); return; }
+
+    const nombreNuevaComunidad = document.getElementById('nuevaComunidadNombre').value.trim();
+    if (comunidadSelectValue === '__nueva__' && !nombreNuevaComunidad) {
+      mostrarErrorForm('Completá el nombre de la nueva comunidad.');
+      return;
+    }
+
     const requiereAdjunto = document.getElementById('requiereAdjunto').checked;
 
     const btn = document.getElementById('btnCrear');
@@ -481,14 +493,34 @@
     btn.textContent = 'Creando...';
 
     try {
+      // 0. Si se eligió "+ Nueva comunidad", crearla primero
+      let comunidadId = comunidadSelectValue;
+      if (comunidadSelectValue === '__nueva__') {
+        const resComunidad = await fetch(`${SUPABASE_URL}/rest/v1/comunidades`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${tokenSuperadmin}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
+          },
+          // PIN provisorio: se ajusta después directo en la base, es
+          // un tema pendiente de resolver en el flujo (ver notas).
+          body: JSON.stringify({ nombre: nombreNuevaComunidad, pin_admin: '1234' })
+        });
+        if (!resComunidad.ok) throw new Error('No se pudo crear la comunidad.');
+        const [comunidadCreada] = await resComunidad.json();
+        comunidadId = comunidadCreada.id;
+      }
+
       // 1. Crear el evento
       const bodyEvento = {
         nombre,
         fecha: document.getElementById('fecha').value || null,
         fecha_limite: document.getElementById('fechaLimite').value || null,
-        tipo_evento: comunidadId ? 'colegio' : 'independiente',
+        tipo_evento: 'colegio',
         comunidad_anfitriona_id: comunidadId,
-        organizador_nombre: comunidadId ? null : (document.getElementById('organizadorNombre').value.trim() || null),
+        organizador_nombre: null,
         organizador_contacto: null,
         campos_requeridos: {
           dni: document.getElementById('campoDni').checked,
