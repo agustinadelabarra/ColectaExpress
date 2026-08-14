@@ -196,6 +196,7 @@
 
     <div class="card">
       <h2>Campos a pedir por participante</h2>
+      <div class="check-row"><input type="checkbox" checked disabled><label style="margin:0">Apellido y nombre</label></div>
       <div class="check-row"><input type="checkbox" id="campoDni"><label style="margin:0">DNI</label></div>
       <div class="check-row"><input type="checkbox" id="campoResponsable"><label style="margin:0">Nombre del responsable</label></div>
       <div class="check-row"><input type="checkbox" id="campoTelefono"><label style="margin:0">Teléfono del responsable</label></div>
@@ -204,17 +205,7 @@
 
     <div class="card">
       <h2>Adjunto</h2>
-      <div class="check-row"><input type="checkbox" id="requiereAdjunto" checked onchange="onRequiereAdjuntoChange()"><label style="margin:0">Este evento requiere subir un adjunto</label></div>
-      <div id="adjuntoOpciones">
-        <label>Tipo de adjunto</label>
-        <select id="tipoAdjunto">
-          <option value="pago">Comprobante de pago</option>
-          <option value="autorizacion">Autorización</option>
-          <option value="otro">Otro</option>
-        </select>
-        <label>Texto que va a ver la familia</label>
-        <input type="text" id="adjuntoLabel" placeholder="Ej: Subí tu comprobante o archivo">
-      </div>
+      <div class="check-row"><input type="checkbox" id="requiereAdjunto" checked><label style="margin:0">Este evento requiere subir un adjunto</label></div>
     </div>
 
     <div class="card">
@@ -291,11 +282,6 @@
     document.getElementById('independienteBox').style.display = esIndependiente ? 'block' : 'none';
   }
 
-  function onRequiereAdjuntoChange() {
-    const requiere = document.getElementById('requiereAdjunto').checked;
-    document.getElementById('adjuntoOpciones').style.display = requiere ? 'block' : 'none';
-  }
-
   let grupoContador = 0;
   function agregarGrupo() {
     grupoContador++;
@@ -310,9 +296,151 @@
       </div>
       <div id="referentes-${id}"></div>
       <button class="btn btn-secundario btn-chico" onclick="agregarReferente(${id})">+ Agregar referente</button>
+
+      <div style="margin-top:10px">
+        <button type="button" class="btn btn-secundario btn-chico" onclick="toggleParticipantes(${id})" id="toggleParticipantesBtn-${id}">+ Cargar participantes</button>
+        <div id="participantesBox-${id}" class="oculto" style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--gris-borde)">
+          <div id="miembrosLista-${id}" style="margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input type="text" placeholder="Apellido y nombre" id="miembroNombre-${id}" style="margin-bottom:0;flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarMiembroInline(${id});}">
+            <button type="button" class="btn btn-secundario btn-chico" onclick="agregarMiembroInline(${id})">+ Agregar</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn btn-secundario btn-chico" onclick="descargarPlantillaCSV(${id})">⬇ Descargar plantilla CSV</button>
+            <label class="btn btn-secundario btn-chico" style="margin:0;cursor:pointer">
+              ⬆ Subir CSV
+              <input type="file" accept=".csv" style="display:none" onchange="subirCSV(event, ${id})">
+            </label>
+          </div>
+        </div>
+      </div>
     `;
     document.getElementById('gruposContainer').appendChild(div);
     agregarReferente(id);
+  }
+
+  function toggleParticipantes(id) {
+    const box = document.getElementById(`participantesBox-${id}`);
+    const btn = document.getElementById(`toggleParticipantesBtn-${id}`);
+    const seVaAAbrir = box.classList.contains('oculto');
+    box.classList.toggle('oculto');
+    btn.textContent = seVaAAbrir ? '− Ocultar participantes' : '+ Cargar participantes';
+  }
+
+  // ===== PARTICIPANTES POR GRUPO (de a uno o por CSV) =====
+  const grupoMiembros = {};
+
+  function agregarMiembroInline(id) {
+    const input = document.getElementById(`miembroNombre-${id}`);
+    const nombre = input.value.trim();
+    if (!nombre) return;
+    if (!grupoMiembros[id]) grupoMiembros[id] = [];
+    grupoMiembros[id].push({ apellido_nombre: nombre, dni: null, responsable_nombre: null, responsable_telefono: null });
+    input.value = '';
+    input.focus();
+    renderMiembrosGrupo(id);
+  }
+
+  function quitarMiembroInline(id, idx) {
+    grupoMiembros[id].splice(idx, 1);
+    renderMiembrosGrupo(id);
+  }
+
+  function renderMiembrosGrupo(id) {
+    const cont = document.getElementById(`miembrosLista-${id}`);
+    const lista = grupoMiembros[id] || [];
+    if (!lista.length) { cont.innerHTML = ''; return; }
+    cont.innerHTML = lista.map((m, i) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--gris-fondo);border-radius:6px;margin-bottom:4px;font-size:13px">
+        <span>${m.apellido_nombre}</span>
+        <span class="quitar" style="font-size:14px" onclick="quitarMiembroInline(${id}, ${i})">✕</span>
+      </div>
+    `).join('');
+  }
+
+  function columnasMiembroActivas() {
+    const cols = [{ key: 'apellido_nombre', label: 'apellido_nombre' }];
+    if (document.getElementById('campoDni').checked) cols.push({ key: 'dni', label: 'dni' });
+    if (document.getElementById('campoResponsable').checked) cols.push({ key: 'responsable_nombre', label: 'responsable_nombre' });
+    if (document.getElementById('campoTelefono').checked) cols.push({ key: 'responsable_telefono', label: 'responsable_telefono' });
+    return cols;
+  }
+
+  function descargarPlantillaCSV(id) {
+    const cols = columnasMiembroActivas();
+    const header = cols.map(c => c.label).join(',');
+    const ejemplo = cols.map(c => c.key === 'apellido_nombre' ? 'García, Juan' : '').join(',');
+    const csv = header + '\n' + ejemplo + '\n';
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const nombreGrupo = (document.getElementById(`grupoNombre-${id}`).value.trim() || 'grupo')
+      .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `miembros-${nombreGrupo || 'grupo'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  // Parser de CSV simple, soporta campos entre comillas con comas adentro.
+  function parsearCSV(texto) {
+    const filas = [];
+    let fila = [], campo = '', enComillas = false;
+    for (let i = 0; i < texto.length; i++) {
+      const c = texto[i];
+      if (enComillas) {
+        if (c === '"') {
+          if (texto[i + 1] === '"') { campo += '"'; i++; }
+          else enComillas = false;
+        } else campo += c;
+      } else {
+        if (c === '"') enComillas = true;
+        else if (c === ',') { fila.push(campo); campo = ''; }
+        else if (c === '\n' || c === '\r') {
+          if (c === '\r' && texto[i + 1] === '\n') i++;
+          fila.push(campo); campo = '';
+          if (fila.length > 1 || fila[0] !== '') filas.push(fila);
+          fila = [];
+        } else campo += c;
+      }
+    }
+    if (campo !== '' || fila.length) { fila.push(campo); filas.push(fila); }
+    return filas;
+  }
+
+  async function subirCSV(event, id) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const texto = await file.text();
+    const filas = parsearCSV(texto);
+    if (!filas.length) { event.target.value = ''; return; }
+
+    const header = filas[0].map(h => h.trim().toLowerCase());
+    const idxNombre = header.indexOf('apellido_nombre');
+    const idxDni = header.indexOf('dni');
+    const idxRespNombre = header.indexOf('responsable_nombre');
+    const idxRespTelefono = header.indexOf('responsable_telefono');
+
+    if (idxNombre === -1) {
+      alert('El CSV tiene que tener una columna "apellido_nombre".');
+      event.target.value = '';
+      return;
+    }
+
+    if (!grupoMiembros[id]) grupoMiembros[id] = [];
+    for (let i = 1; i < filas.length; i++) {
+      const f = filas[i];
+      const nombre = (f[idxNombre] || '').trim();
+      if (!nombre) continue;
+      grupoMiembros[id].push({
+        apellido_nombre: nombre,
+        dni: idxDni > -1 ? ((f[idxDni] || '').trim() || null) : null,
+        responsable_nombre: idxRespNombre > -1 ? ((f[idxRespNombre] || '').trim() || null) : null,
+        responsable_telefono: idxRespTelefono > -1 ? ((f[idxRespTelefono] || '').trim() || null) : null,
+      });
+    }
+    event.target.value = '';
+    renderMiembrosGrupo(id);
   }
 
   let referenteContador = 0;
@@ -369,8 +497,8 @@
           comentarios: document.getElementById('campoComentarios').checked,
         },
         requiere_adjunto: requiereAdjunto,
-        tipo_adjunto: requiereAdjunto ? document.getElementById('tipoAdjunto').value : null,
-        adjunto_label: requiereAdjunto ? (document.getElementById('adjuntoLabel').value.trim() || 'Subí el comprobante o archivo requerido') : null,
+        tipo_adjunto: requiereAdjunto ? 'pago' : null,
+        adjunto_label: requiereAdjunto ? 'Subí el comprobante o archivo requerido' : null,
       };
 
       const eventoCreado = await crearEventoConSlugUnico(bodyEvento, slugify(nombre));
@@ -424,6 +552,32 @@
       });
 
       if (!resEnlaces.ok) throw new Error('Los grupos se crearon, pero hubo un error enlazándolos al evento.');
+
+      // 2c. Cargar los participantes que se hayan agregado de a uno
+      // o por CSV en cada grupo (es opcional, puede no haber ninguno)
+      const miembrosBody = [];
+      Array.from(gruposBoxes).forEach((box, i) => {
+        const boxId = box.id.split('-')[1];
+        const grupoCreado = gruposCreados[i];
+        const miembrosDeEsteGrupo = grupoMiembros[boxId] || [];
+        miembrosDeEsteGrupo.forEach(m => {
+          miembrosBody.push({ ...m, grupo_id: grupoCreado.id });
+        });
+      });
+
+      if (miembrosBody.length) {
+        const resMiembros = await fetch(`${SUPABASE_URL}/rest/v1/miembros`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${tokenSuperadmin}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(miembrosBody)
+        });
+
+        if (!resMiembros.ok) throw new Error('El evento y los grupos se crearon, pero hubo un error cargando los participantes.');
+      }
 
       // 3. Mostrar éxito con el link corto (usa el slug)
       const link = `${location.origin}/e/${eventoCreado.slug}`;
@@ -485,7 +639,6 @@
     setTimeout(() => { event.target.textContent = '📋 Copiar link'; }, 2000);
   }
 
-  onRequiereAdjuntoChange();
 </script>
 
 <p class="privacidad-link"><a onclick="document.getElementById('privacidadOverlay').classList.add('activo')">Política de privacidad</a></p>
