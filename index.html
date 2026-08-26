@@ -252,9 +252,48 @@
       document.getElementById('viewPin').classList.add('oculto');
       document.getElementById('viewForm').classList.remove('oculto');
       await cargarComunidades();
-      agregarGrupo(); // arranca con un grupo vacío
+
+      const paramsUrl = new URLSearchParams(window.location.search);
+      const copiarGrupoIdParam = paramsUrl.get('copiar_grupo');
+      if (copiarGrupoIdParam) {
+        await cargarGrupoParaCopiar(copiarGrupoIdParam);
+      } else {
+        agregarGrupo(); // arranca con un grupo vacío
+      }
     } catch (e) {
       document.getElementById('pinError').style.display = 'block';
+    }
+  }
+
+  // Trae un grupo existente (nombre, referentes y miembros) para
+  // precargar un grupo nuevo como copia, cuando se llega desde
+  // "🔁 Nueva colecta" con ?copiar_grupo=<id>.
+  async function cargarGrupoParaCopiar(grupoId) {
+    try {
+      const resGrupo = await fetch(`${SUPABASE_URL}/rest/v1/grupos?id=eq.${grupoId}&select=id,nombre,comunidad_id,referentes`, {
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenSuperadmin}` }
+      });
+      const [grupoOrigen] = await resGrupo.json();
+      if (!grupoOrigen) { agregarGrupo(); return; }
+
+      const resMiembros = await fetch(`${SUPABASE_URL}/rest/v1/miembros?grupo_id=eq.${grupoId}&select=apellido_nombre,dni,responsable_nombre,responsable_telefono&order=apellido_nombre`, {
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenSuperadmin}` }
+      });
+      const miembrosOrigen = await resMiembros.json();
+
+      if (grupoOrigen.comunidad_id) {
+        document.getElementById('comunidadSelect').value = grupoOrigen.comunidad_id;
+        onComunidadChange();
+      }
+
+      agregarGrupo({
+        nombre: grupoOrigen.nombre,
+        referentes: grupoOrigen.referentes || [],
+        copiaMiembros: miembrosOrigen
+      });
+    } catch (e) {
+      console.error('No se pudo cargar el grupo a copiar', e);
+      agregarGrupo();
     }
   }
 
@@ -287,19 +326,29 @@
   }
 
   let grupoContador = 0;
-  function agregarGrupo() {
+  // `prefill` es opcional: { nombre, referentes: [{nombre,alias}], copiaMiembros: [...] }
+  // se usa cuando el grupo se arma como copia de uno existente ("🔁 Nueva colecta").
+  function agregarGrupo(prefill) {
     grupoContador++;
     const id = grupoContador;
     const div = document.createElement('div');
     div.className = 'grupo-box';
     div.id = `grupo-${id}`;
+    const nombreValor = prefill?.nombre || '';
+    const copiaHtml = prefill?.copiaMiembros ? `
+      <div class="check-row" style="background:#EDE6F9;border-radius:8px;padding:8px 10px;margin-top:8px">
+        <input type="checkbox" id="copiarMiembrosToggle-${id}" checked>
+        <label style="margin:0;color:#6B4FA0">🔁 Copiar miembros (${prefill.copiaMiembros.length})</label>
+      </div>
+    ` : '';
     div.innerHTML = `
       <div class="grupo-box-header">
-        <input type="text" placeholder="Nombre del grupo" style="margin-bottom:0" id="grupoNombre-${id}">
+        <input type="text" placeholder="Nombre del grupo" style="margin-bottom:0" id="grupoNombre-${id}" value="${nombreValor}">
         <span class="quitar" onclick="document.getElementById('grupo-${id}').remove()">✕</span>
       </div>
       <div id="referentes-${id}"></div>
       <button class="btn btn-secundario btn-chico" onclick="agregarReferente(${id})">+ Agregar referente</button>
+      ${copiaHtml}
 
       <div style="margin-top:10px">
         <button type="button" class="btn btn-secundario btn-chico" onclick="toggleParticipantes(${id})" id="toggleParticipantesBtn-${id}">+ Cargar participantes</button>
@@ -320,7 +369,18 @@
       </div>
     `;
     document.getElementById('gruposContainer').appendChild(div);
-    agregarReferente(id);
+
+    if (prefill?.referentes?.length) {
+      prefill.referentes.forEach(r => agregarReferente(id, r.nombre, r.alias));
+    } else {
+      agregarReferente(id);
+    }
+
+    if (prefill?.copiaMiembros) {
+      grupoCopiaOrigenMiembros[id] = prefill.copiaMiembros;
+    }
+
+    return id;
   }
 
   function toggleParticipantes(id) {
@@ -333,6 +393,9 @@
 
   // ===== PARTICIPANTES POR GRUPO (de a uno o por CSV) =====
   const grupoMiembros = {};
+  // Miembros traídos de un grupo origen al usar "🔁 Nueva colecta",
+  // por id de grupo-box (se copian solo si el toggle sigue tildado).
+  const grupoCopiaOrigenMiembros = {};
 
   function agregarMiembroInline(id) {
     const input = document.getElementById(`miembroNombre-${id}`);
@@ -448,15 +511,15 @@
   }
 
   let referenteContador = 0;
-  function agregarReferente(grupoId) {
+  function agregarReferente(grupoId, nombre, alias) {
     referenteContador++;
     const rid = referenteContador;
     const div = document.createElement('div');
     div.className = 'referente-row';
     div.id = `ref-${rid}`;
     div.innerHTML = `
-      <input type="text" placeholder="Nombre referente" id="refNombre-${rid}">
-      <input type="text" placeholder="Alias (opcional)" id="refAlias-${rid}">
+      <input type="text" placeholder="Nombre referente" id="refNombre-${rid}" value="${nombre || ''}">
+      <input type="text" placeholder="Alias (opcional)" id="refAlias-${rid}" value="${alias || ''}">
       <span class="quitar" onclick="document.getElementById('ref-${rid}').remove()">✕</span>
     `;
     document.getElementById(`referentes-${grupoId}`).appendChild(div);
@@ -535,10 +598,14 @@
 
       const eventoCreado = await crearEventoConSlugUnico(bodyEvento, slugify(nombre));
 
-      // 2. Crear los grupos — quedan asociados a la comunidad (si
-      // la hay) para poder reusarse en futuros eventos; el enlace
-      // con ESTE evento puntual se arma aparte, en evento_grupos.
-      const gruposBody = Array.from(gruposBoxes).map(box => {
+      // 2. Crear los grupos uno por uno (secuencial, no en bulk) para
+      // poder mapear con certeza cada grupo nuevo recién creado con
+      // su propio toggle de "copiar miembros" y sus participantes.
+      // Quedan asociados a la comunidad (si la hay) para poder
+      // reusarse en futuros eventos; el enlace con ESTE evento
+      // puntual se arma aparte, en evento_grupos.
+      const gruposCreados = [];
+      for (const box of Array.from(gruposBoxes)) {
         const id = box.id.split('-')[1];
         const nombreGrupo = document.getElementById(`grupoNombre-${id}`).value.trim() || 'Grupo';
         const referentesRows = box.querySelectorAll('.referente-row');
@@ -549,66 +616,61 @@
           return rNombre ? { nombre: rNombre, alias: rAlias } : null;
         }).filter(Boolean);
 
-        return {
-          nombre: nombreGrupo,
-          comunidad_id: comunidadId,
-          referentes
-        };
-      });
-
-      const resGrupos = await fetch(`${SUPABASE_URL}/rest/v1/grupos`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${tokenSuperadmin}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation',
-        },
-        body: JSON.stringify(gruposBody)
-      });
-
-      if (!resGrupos.ok) throw new Error('El evento se creó, pero hubo un error creando los grupos.');
-      const gruposCreados = await resGrupos.json();
-
-      // 2b. Enlazar cada grupo recién creado a este evento
-      const enlacesBody = gruposCreados.map(g => ({ evento_id: eventoCreado.id, grupo_id: g.id }));
-
-      const resEnlaces = await fetch(`${SUPABASE_URL}/rest/v1/evento_grupos`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${tokenSuperadmin}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(enlacesBody)
-      });
-
-      if (!resEnlaces.ok) throw new Error('Los grupos se crearon, pero hubo un error enlazándolos al evento.');
-
-      // 2c. Cargar los participantes que se hayan agregado de a uno
-      // o por CSV en cada grupo (es opcional, puede no haber ninguno)
-      const miembrosBody = [];
-      Array.from(gruposBoxes).forEach((box, i) => {
-        const boxId = box.id.split('-')[1];
-        const grupoCreado = gruposCreados[i];
-        const miembrosDeEsteGrupo = grupoMiembros[boxId] || [];
-        miembrosDeEsteGrupo.forEach(m => {
-          miembrosBody.push({ ...m, grupo_id: grupoCreado.id });
+        const resGrupo = await fetch(`${SUPABASE_URL}/rest/v1/grupos`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${tokenSuperadmin}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify({ nombre: nombreGrupo, comunidad_id: comunidadId, referentes })
         });
-      });
+        if (!resGrupo.ok) throw new Error('El evento se creó, pero hubo un error creando un grupo.');
+        const [grupoCreado] = await resGrupo.json();
+        gruposCreados.push(grupoCreado);
 
-      if (miembrosBody.length) {
-        const resMiembros = await fetch(`${SUPABASE_URL}/rest/v1/miembros`, {
+        // 2a. Enlazar este grupo al evento
+        const resEnlace = await fetch(`${SUPABASE_URL}/rest/v1/evento_grupos`, {
           method: 'POST',
           headers: {
             apikey: SUPABASE_KEY,
             Authorization: `Bearer ${tokenSuperadmin}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(miembrosBody)
+          body: JSON.stringify({ evento_id: eventoCreado.id, grupo_id: grupoCreado.id })
         });
+        if (!resEnlace.ok) throw new Error('Un grupo se creó, pero hubo un error enlazándolo al evento.');
 
-        if (!resMiembros.ok) throw new Error('El evento y los grupos se crearon, pero hubo un error cargando los participantes.');
+        // 2b. Miembros de este grupo: los copiados del grupo origen
+        // (si vino de "🔁 Nueva colecta" y el toggle sigue tildado)
+        // más los que se hayan cargado de a uno o por CSV.
+        const miembrosDeEsteGrupo = [];
+        const toggleCopia = document.getElementById(`copiarMiembrosToggle-${id}`);
+        if (toggleCopia && toggleCopia.checked && grupoCopiaOrigenMiembros[id]) {
+          grupoCopiaOrigenMiembros[id].forEach(m => {
+            miembrosDeEsteGrupo.push({
+              apellido_nombre: m.apellido_nombre,
+              dni: m.dni ?? null,
+              responsable_nombre: m.responsable_nombre ?? null,
+              responsable_telefono: m.responsable_telefono ?? null,
+            });
+          });
+        }
+        (grupoMiembros[id] || []).forEach(m => miembrosDeEsteGrupo.push(m));
+
+        if (miembrosDeEsteGrupo.length) {
+          const resMiembros = await fetch(`${SUPABASE_URL}/rest/v1/miembros`, {
+            method: 'POST',
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${tokenSuperadmin}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(miembrosDeEsteGrupo.map(m => ({ ...m, grupo_id: grupoCreado.id })))
+          });
+          if (!resMiembros.ok) throw new Error('El evento y los grupos se crearon, pero hubo un error cargando los participantes.');
+        }
       }
 
       // 3. Mostrar éxito con el link corto (usa el slug)
