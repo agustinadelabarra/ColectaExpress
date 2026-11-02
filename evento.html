@@ -688,11 +688,11 @@
   <div class="step activo" id="step1">
     <div style="text-align:right;margin-bottom:12px"><button class="btn btn-primario" style="width:auto;padding:7px 16px;font-size:12px" onclick="irAdmin()">Acceso coordinadoras</button></div>
     <div class="fiesta-card" style="margin-bottom:20px">
-      <p class="fiesta-label">Próximo evento</p>
+      <p class="fiesta-label" id="fiestaStep1Label">Próximo evento</p>
       <p class="fiesta-nombre" id="fiestaStep1Nombre">Cargando...</p>
       <p class="fiesta-fecha" id="fiestaStep1Fecha"></p>
     </div>
-    <p class="seccion-titulo">Seleccioná tu grupo</p>
+    <p class="seccion-titulo" id="tituloSeleccion">Seleccioná tu grupo</p>
     <div class="card">
       <div class="medidor medidor-total" id="medidorTotal" style="display:none;padding:0"></div>
       <div class="grupo-grid" id="grupoGrid"></div>
@@ -701,7 +701,7 @@
 
   <!-- STEP 2: LISTA DE ALUMNAS -->
   <div class="step" id="step2">
-    <div class="nav-back" onclick="volverA(1)">← Cambiar grupo</div>
+    <div class="nav-back" id="navCambiarGrupo" onclick="volverA(1)">← Cambiar grupo</div>
     <p class="seccion-titulo" id="tituloGrupo"></p>
     <p class="seccion-subtitulo">Buscá el nombre en la lista y tocalo.</p>
     <div class="card">
@@ -1039,7 +1039,13 @@
       const data = await res.json();
       if (data && data[0]) {
         eventoData = data[0];
-        if (esVideo()) activarGuardaConfeti();
+        if (esVideo()) {
+          activarGuardaConfeti();
+          // Textos propios del evento de video
+          document.getElementById('fiestaStep1Label').style.display = 'none';
+          document.getElementById('tituloSeleccion').textContent = 'Seleccioná tu clase';
+          document.getElementById('navCambiarGrupo').textContent = '← Cambiar clase';
+        }
         const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
         document.getElementById('fiestaStep1Nombre').textContent = eventoData.nombre;
         document.getElementById('fiestaStep1Fecha').textContent = textoFechaEvento(fecha);
