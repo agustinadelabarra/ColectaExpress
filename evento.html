@@ -100,7 +100,9 @@
   html.pre-video .cinta-fondo,
   html.pre-video .header-texto,
   html.pre-video #fiestaStep1Label,
-  html.pre-video .screenshot-aviso { display: none; }
+  html.pre-video .screenshot-aviso,
+  body.modo-video .privacidad-general,
+  html.pre-video .privacidad-general { display: none; }
   @media (min-width: 700px) { .guarda-confeti { height: 160px; } }
 
   /* CONTENIDO */
@@ -2380,9 +2382,9 @@
   <div class="privacidad-modal">
     <p class="privacidad-titulo">Política de privacidad</p>
     <div class="privacidad-texto">
-      Esta herramienta recopila datos personales y el adjunto correspondiente (comprobante u otro archivo, según el evento), con el único fin de coordinar la participación en los eventos organizados por la comunidad.<br><br>
+      Esta herramienta recopila datos personales y el adjunto correspondiente (comprobante u otro archivo, según el evento), con el único fin de coordinar la participación en los eventos organizados por la comunidad.<span class="privacidad-general"><br><br>
       Los datos son accesibles únicamente por las coordinadoras autorizadas de cada grupo. No se comparten con terceros ni se utilizan con fines comerciales.<br><br>
-      Para consultas: <strong><a href="mailto:contacto@vertexsur.com">contacto@vertexsur.com</a></strong>
+      Para consultas: <strong><a href="mailto:contacto@vertexsur.com">contacto@vertexsur.com</a></strong></span>
     </div>
     <button class="btn btn-secundario" onclick="document.getElementById('privacidadOverlay').classList.remove('activo')">Cerrar</button>
   </div>
