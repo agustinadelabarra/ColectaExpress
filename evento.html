@@ -969,9 +969,9 @@
   // hasta dos fotos de grupo (opcionales). Cada tipo va a su propia
   // carpeta del Storage: <evento>/chiquita, <evento>/actual, <evento>/grupo.
   const FOTOS_VIDEO = {
-    chiquita: { titulo: 'De chiquita', sub: 'Bebé o hasta 5 años', obligatoria: true },
+    chiquita: { titulo: '1er grado', sub: 'Foto de cuando estaba en 1er grado', obligatoria: true },
     actual: { titulo: 'Actual', sub: 'Sola y de frente', obligatoria: true },
-    grupo: { titulo: 'De grupo', sub: 'Opcional · hasta 2', obligatoria: false, max: 2 },
+    grupo: { titulo: 'Grupo', sub: 'Opcional · hasta 2', obligatoria: false, max: 2 },
   };
   function esVideo() { return eventoData.tipo_adjunto === 'video'; }
   // En el evento de video lo importante es hasta cuándo se pueden subir las fotos
@@ -1817,7 +1817,7 @@
         <strong>Grupo:</strong> ${grupoSeleccionado.nombre}<br>
         <strong>Fiesta:</strong> ${eventoData.nombre}<br>
         <strong>Fecha:</strong> ${fecha}
-        ${video ? `<br><strong>Fotos:</strong> de chiquita ✓ · actual ✓${(adjuntos.grupo || []).length ? ` · de grupo (${adjuntos.grupo.length}) ✓` : ''}`
+        ${video ? `<br><strong>Fotos:</strong> 1er grado ✓ · actual ✓${(adjuntos.grupo || []).length ? ` · grupo (${adjuntos.grupo.length}) ✓` : ''}`
           : necesitaAdjunto ? `<br><strong>${nombreCortoAdjunto()}:</strong> ${archivoSelec.name}` : ''}
       `;
 
@@ -2062,7 +2062,7 @@
 
     const celda = (url, etiqueta) => url
       ? `<div class="galeria-foto" data-url="${url}" onclick="verFotoGaleria(this)"><span>…</span><span class="galeria-etiqueta">${etiqueta}</span></div>`
-      : `<div class="galeria-foto falta">Falta<br>${etiqueta.toLowerCase()}</div>`;
+      : `<div class="galeria-foto falta">Falta<br>${etiqueta === '1er grado' ? etiqueta : etiqueta.toLowerCase()}</div>`;
 
     const miembros = todosMiembros.filter(m => m.grupo_id === galeriaGrupoId);
     document.getElementById('galeriaLista').innerHTML = miembros.map(m => {
@@ -2073,7 +2073,7 @@
         <div class="galeria-fila">
           <div class="galeria-nombre">${m.apellido_nombre}<span>${estado}</span></div>
           <div class="galeria-fotos">
-            ${celda(a.chiquita, 'Chiquita')}
+            ${celda(a.chiquita, '1er grado')}
             ${celda(a.actual, 'Actual')}
             ${grupo.length ? grupo.map((u, i) => celda(u, 'Grupo ' + (i + 1))).join('') : '<div class="galeria-foto falta">Sin fotos<br>de grupo</div>'}
           </div>
@@ -2225,7 +2225,7 @@
       const fotos = [];
       Object.keys(FOTOS_VIDEO).forEach(clave => {
         const urls = [].concat(conf.adjuntos[clave] || []);
-        urls.forEach((url, i) => fotos.push([url, `📷 Ver foto ${FOTOS_VIDEO[clave].titulo.toLowerCase()}${urls.length > 1 ? ' ' + (i + 1) : ''}`]));
+        urls.forEach((url, i) => fotos.push([url, `📷 Ver foto ${clave === 'chiquita' ? 'de 1er grado' : FOTOS_VIDEO[clave].titulo.toLowerCase()}${urls.length > 1 ? ' ' + (i + 1) : ''}`]));
       });
       fotos.forEach(([url, texto]) => {
         const link = document.createElement('a');
