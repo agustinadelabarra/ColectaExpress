@@ -686,7 +686,7 @@
 
   <!-- STEP 1: SELECCIÓN DE GRUPO -->
   <div class="step activo" id="step1">
-    <div style="text-align:right;margin-bottom:12px"><button class="btn btn-primario" style="width:auto;padding:7px 16px;font-size:12px" onclick="irAdmin()">Acceso coordinadoras</button></div>
+    <div style="text-align:right;margin-bottom:12px"><button class="btn btn-primario" style="width:auto;padding:7px 16px;font-size:12px" onclick="irAdmin()" id="btnAccesoAdmin">Acceso coordinadoras</button></div>
     <div class="fiesta-card" style="margin-bottom:20px">
       <p class="fiesta-label" id="fiestaStep1Label">Próximo evento</p>
       <p class="fiesta-nombre" id="fiestaStep1Nombre">Cargando...</p>
@@ -805,7 +805,7 @@
 
     <div class="exito-detalle" id="exitoDetalle"></div>
 
-    <div class="screenshot-aviso">
+    <div class="screenshot-aviso" id="screenshotAviso">
       <span class="screenshot-aviso-icono">📸</span>
       <span>Podés sacar un <strong>screenshot de esta pantalla</strong> como constancia de tu confirmación.</span>
     </div>
@@ -816,7 +816,7 @@
   <!-- STEP 5: PIN ADMIN -->
   <div class="step" id="step5">
     <div class="pin-form">
-      <p class="pin-titulo">🔐 Acceso coordinadoras</p>
+      <p class="pin-titulo" id="pinTitulo">🔐 Acceso coordinadoras</p>
       <p class="pin-subtitulo">Ingresá el PIN de administración para ver la lista completa.</p>
       <input type="password" class="pin-input" id="pinInput" placeholder="••••" inputmode="numeric" autocomplete="off" maxlength="10" onkeydown="if(event.key==='Enter') verificarPin()">
       <p class="pin-error" id="pinError">PIN incorrecto. Intentá de nuevo.</p>
@@ -829,7 +829,7 @@
   <div class="step" id="step6">
     <div class="admin-header">
       <div>
-        <p class="admin-titulo">Vista coordinadora</p>
+        <p class="admin-titulo" id="adminTitulo">Vista coordinadora</p>
         <p class="admin-subtitulo" id="adminSubtitulo"></p>
       </div>
       <div style="display:flex;gap:8px">
@@ -860,7 +860,7 @@
 
   <!-- STEP 7: GALERÍA DE FOTOS (solo coordinadoras, evento de video) -->
   <div class="step" id="step7">
-    <div class="nav-back" onclick="cerrarGaleria()">← Volver a la vista coordinadora</div>
+    <div class="nav-back" onclick="cerrarGaleria()">← Volver al comité video</div>
     <p class="seccion-titulo">Fotos para el video</p>
     <p class="seccion-subtitulo" id="galeriaResumen"></p>
     <div class="galeria-filtros" id="galeriaFiltros"></div>
@@ -1045,6 +1045,10 @@
           document.getElementById('fiestaStep1Label').style.display = 'none';
           document.getElementById('tituloSeleccion').textContent = 'Seleccioná tu clase';
           document.getElementById('navCambiarGrupo').textContent = '← Cambiar clase';
+          document.getElementById('btnAccesoAdmin').textContent = 'Comité video';
+          document.getElementById('pinTitulo').textContent = '🔐 Comité video';
+          document.getElementById('adminTitulo').textContent = 'Comité video';
+          document.getElementById('screenshotAviso').style.display = 'none';
         }
         const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
         document.getElementById('fiestaStep1Nombre').textContent = eventoData.nombre;
