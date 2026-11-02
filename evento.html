@@ -150,6 +150,43 @@
   }
   .grupo-info strong { color: var(--azul); font-weight: 600; }
 
+  /* MEDIDOR DE AVANCE POR GRUPO */
+  .medidor { padding: 8px 16px 10px; background: var(--blanco); }
+  .medidor-texto { display: flex; justify-content: space-between; font-size: 12px; color: var(--gris-texto); margin-bottom: 5px; }
+  .medidor-texto strong { color: var(--azul); font-weight: 700; }
+  .medidor-barra { height: 8px; border-radius: 99px; background: var(--gris-borde); overflow: hidden; }
+  .medidor-relleno { height: 100%; width: 0; border-radius: 99px; background: var(--azul); transition: width 0.6s ease; }
+  .medidor-relleno.completo { background: var(--verde); }
+  .medidor-total { margin: 0 0 14px; }
+  .medidor-total .medidor-texto { font-size: 13px; }
+  .medidor-total .medidor-barra { height: 10px; }
+
+  /* GALERÍA DE FOTOS (vista coordinadora, evento de video) */
+  .galeria-filtros { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .galeria-chip { border: 1.5px solid var(--gris-borde); background: var(--blanco); color: var(--azul); border-radius: 99px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .galeria-chip.activo { background: var(--azul); border-color: var(--azul); color: var(--blanco); }
+  .galeria-fila { background: var(--blanco); border: 1px solid var(--gris-borde); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+  .galeria-nombre { font-size: 14px; font-weight: 700; color: var(--azul); margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+  .galeria-nombre span { font-size: 11px; font-weight: 600; color: var(--gris-texto); }
+  .galeria-fotos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .galeria-foto { aspect-ratio: 1; border-radius: 6px; background: var(--gris-fondo); overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--gris-texto); text-align: center; cursor: pointer; position: relative; }
+  .galeria-foto img { width: 100%; height: 100%; object-fit: cover; }
+  .galeria-foto .galeria-etiqueta { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); color: #fff; font-size: 9px; padding: 2px 0; }
+  .galeria-foto.falta { border: 1.5px dashed var(--gris-borde); cursor: default; }
+  .galeria-visor { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+  .galeria-visor.activo { display: flex; }
+  .galeria-visor img { max-width: 100%; max-height: 100%; border-radius: 6px; }
+
+  /* FOTOS PARA VIDEO (dos fotos por persona) */
+  .fotos-video { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .foto-slot { border: 2px dashed var(--gris-borde); border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+  .foto-slot.tiene-archivo { border-style: solid; border-color: var(--verde); background: var(--verde-claro); }
+  .foto-slot img { width: 100%; height: 80px; object-fit: cover; border-radius: 6px; }
+  .foto-slot .fotos-mini { display: flex; gap: 4px; width: 100%; }
+  .foto-slot .fotos-mini img { flex: 1; min-width: 0; }
+  .foto-slot-titulo { font-size: 13px; font-weight: 600; color: var(--azul); }
+  .foto-slot-sub { font-size: 11px; color: var(--gris-texto); }
+
   /* BUSCADOR */
   .buscador {
     position: relative;
@@ -646,6 +683,7 @@
     </div>
     <p class="seccion-titulo">Seleccioná tu grupo</p>
     <div class="card">
+      <div class="medidor medidor-total" id="medidorTotal" style="display:none;padding:0"></div>
       <div class="grupo-grid" id="grupoGrid"></div>
     </div>
   </div>
@@ -713,9 +751,18 @@
       <div id="detalleFaltantes" style="margin-bottom:6px"></div>
 
       <div id="comentariosArea" style="display:none;margin-bottom:14px">
-        <label style="font-size:13px;font-weight:600;color:var(--gris-texto);display:block;margin-bottom:6px">Comentarios (opcional)</label>
+        <label id="comentariosLabel" style="font-size:13px;font-weight:600;color:var(--gris-texto);display:block;margin-bottom:6px">Comentarios (opcional)</label>
         <textarea id="comentariosInput" rows="2" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:8px;font-family:inherit;font-size:14px;box-sizing:border-box" placeholder="Ej: alergias, aclaraciones..."></textarea>
       </div>
+
+      <div class="fotos-video" id="fotosVideo" style="display:none">
+        <div class="foto-slot" id="slot-chiquita" onclick="document.getElementById('fileInput-chiquita').click()"></div>
+        <div class="foto-slot" id="slot-actual" onclick="document.getElementById('fileInput-actual').click()"></div>
+        <div class="foto-slot" id="slot-grupo" onclick="document.getElementById('fileInput-grupo').click()"></div>
+      </div>
+      <input type="file" id="fileInput-chiquita" accept="image/*" style="display:none" onchange="fotoVideoSeleccionada('chiquita', event)">
+      <input type="file" id="fileInput-actual" accept="image/*" style="display:none" onchange="fotoVideoSeleccionada('actual', event)">
+      <input type="file" id="fileInput-grupo" accept="image/*" multiple style="display:none" onchange="fotoVideoSeleccionada('grupo', event)">
 
       <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
         <div class="upload-icon">📎</div>
@@ -775,6 +822,7 @@
         <p class="admin-subtitulo" id="adminSubtitulo"></p>
       </div>
       <div style="display:flex;gap:8px">
+        <button class="btn-secundario btn" id="btnGaleria" style="width:auto;padding:8px 14px;font-size:12px;display:none" onclick="abrirGaleria()">🖼 Ver fotos</button>
         <button class="btn-secundario btn" style="width:auto;padding:8px 14px;font-size:12px" onclick="abrirModalAgregarMiembro()">➕ Agregar miembro</button>
         <button class="btn-secundario btn" style="width:auto;padding:8px 14px;font-size:12px" onclick="exportarCSV()">⬇ Exportar CSV</button>
         <button class="btn-secundario btn" style="width:auto;padding:8px 14px;font-size:12px" onclick="mostrarStep(1)">Salir</button>
@@ -799,6 +847,16 @@
     <div id="adminLista"></div>
   </div>
 
+  <!-- STEP 7: GALERÍA DE FOTOS (solo coordinadoras, evento de video) -->
+  <div class="step" id="step7">
+    <div class="nav-back" onclick="cerrarGaleria()">← Volver a la vista coordinadora</div>
+    <p class="seccion-titulo">Fotos para el video</p>
+    <p class="seccion-subtitulo" id="galeriaResumen"></p>
+    <div class="galeria-filtros" id="galeriaFiltros"></div>
+    <div id="galeriaLista"></div>
+  </div>
+  <div class="galeria-visor" id="galeriaVisor" onclick="this.classList.remove('activo')"><img id="galeriaVisorImg" alt=""></div>
+
   <!-- MODAL DETALLE ALUMNA -->
   <div class="modal-overlay" id="modalOverlay" onclick="cerrarModal(event)">
     <div class="modal" style="position:relative">
@@ -807,6 +865,7 @@
       <p class="modal-grupo" id="modalGrupo"></p>
       <div class="modal-info" id="modalInfo"></div>
       <a id="modalComprobante" href="#" target="_blank" class="btn-link" style="display:none">📎 Ver comprobante</a>
+      <div id="modalFotosExtra"></div>
       <button class="btn btn-primario" id="btnValidar" onclick="validarAlumna()" style="display:none">✓ Marcar como validada</button>
       <button class="btn btn-secundario" onclick="document.getElementById('modalOverlay').classList.remove('activo')" style="margin-top:10px">Cerrar</button>
     </div>
@@ -894,8 +953,28 @@
 
   // Helpers para que el texto de "comprobante" sea configurable
   // por evento, en vez de estar fijo en el HTML.
+  // Evento de "fotos para video": en vez de un único adjunto, cada
+  // familia sube una foto de chiquita y una actual (obligatorias) y
+  // hasta dos fotos de grupo (opcionales). Cada tipo va a su propia
+  // carpeta del Storage: <evento>/chiquita, <evento>/actual, <evento>/grupo.
+  const FOTOS_VIDEO = {
+    chiquita: { titulo: 'De chiquita', sub: 'Bebé o hasta 5 años', obligatoria: true },
+    actual: { titulo: 'Actual', sub: 'Sola y de frente', obligatoria: true },
+    grupo: { titulo: 'De grupo', sub: 'Opcional · hasta 2', obligatoria: false, max: 2 },
+  };
+  function esVideo() { return eventoData.tipo_adjunto === 'video'; }
+  // En el evento de video lo importante es hasta cuándo se pueden subir las fotos
+  function textoFechaEvento(fecha) {
+    if (esVideo() && eventoData.fecha_limite) {
+      const limite = new Date(eventoData.fecha_limite + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+      return `Subí las fotos hasta el ${limite}`;
+    }
+    return fecha;
+  }
+
   function nombreCortoAdjunto() {
     const tipo = eventoData.tipo_adjunto;
+    if (tipo === 'video') return 'Fotos';
     if (tipo === 'pago') return 'Comprobante';
     if (tipo === 'autorizacion') return 'Autorización';
     return 'Adjunto';
@@ -906,18 +985,23 @@
     const elUpload = document.getElementById('uploadTexto');
     if (elUpload) elUpload.textContent = label;
     const elExito = document.getElementById('exitoSubtitulo');
-    if (elExito) elExito.textContent = `Tu ${corto.toLowerCase()} fue enviado. La coordinadora lo validará pronto.`;
+    if (elExito) elExito.textContent = esVideo()
+      ? '¡Gracias! Las fotos llegaron bien. Si querés cambiar alguna, podés volver a entrar cuando quieras.'
+      : `Tu ${corto.toLowerCase()} fue enviado. La coordinadora lo validará pronto.`;
     const elStatLabel = document.getElementById('statSubidoLabel');
     if (elStatLabel) elStatLabel.textContent = `Con ${corto.toLowerCase()}`;
     // Si el evento no requiere adjunto, ocultamos el área de subida
     // y habilitamos confirmar directo.
     const uploadArea = document.getElementById('uploadArea');
-    if (uploadArea) uploadArea.style.display = eventoData.requiere_adjunto === false ? 'none' : '';
+    if (uploadArea) uploadArea.style.display = (eventoData.requiere_adjunto === false || esVideo()) ? 'none' : '';
+    const fotosVideo = document.getElementById('fotosVideo');
+    if (fotosVideo) fotosVideo.style.display = esVideo() ? '' : 'none';
   }
 
   let grupoSeleccionado = null;
   let alumnaSeleccionada = null;
   let archivoSelec = null;
+  let fotosSelec = { chiquita: null, actual: null, grupo: null }; // archivos nuevos de esta visita (grupo: array)
   let alumnas = [];
   let confirmaciones = {};
   let eventoData = { nombre: 'Fiesta 3', fecha: '2026-07-01' };
@@ -946,7 +1030,7 @@
         eventoData = data[0];
         const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
         document.getElementById('fiestaStep1Nombre').textContent = eventoData.nombre;
-        document.getElementById('fiestaStep1Fecha').textContent = fecha;
+        document.getElementById('fiestaStep1Fecha').textContent = textoFechaEvento(fecha);
         document.getElementById('adminSubtitulo').textContent = eventoData.organizador_nombre || '';
         actualizarTextosAdjunto();
       }
@@ -976,6 +1060,7 @@
           <span class="grupo-nombre">${g.nombre}</span>
           <span class="grupo-arrow">→</span>
         </button>
+        <div class="medidor" id="medidor-${g.id}" style="display:none"></div>
         <div class="grupo-info">
           <div style="display:flex;justify-content:flex-start;margin-bottom:8px">
             <button onclick="copiarGrupo('${g.id}', event)" style="background:#EDE6F9;color:#6B4FA0;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;border:none;cursor:pointer;white-space:nowrap">🔁 Nueva colecta</button>
@@ -990,6 +1075,61 @@
         </div>
       </div>
     `).join('');
+    cargarMedidores();
+  }
+
+  // ===== MEDIDOR DE AVANCE =====
+  // Cuántos miembros de cada grupo ya completaron (mismo criterio que
+  // el "✓ Confirmada" de la lista: adjunto subido, o asistencia si el
+  // evento no pide adjunto). Si algo falla, los medidores no se muestran
+  // y la pantalla sigue funcionando igual.
+  function htmlMedidor(listos, total, etiqueta) {
+    const pct = total ? Math.round(listos * 100 / total) : 0;
+    return `
+      <div class="medidor-texto"><span>${etiqueta}<strong>${listos} de ${total}</strong> ya ${esVideo() ? 'mandaron sus fotos' : 'completaron'}</span><strong>${pct}%</strong></div>
+      <div class="medidor-barra"><div class="medidor-relleno ${pct === 100 ? 'completo' : ''}" data-pct="${pct}"></div></div>`;
+  }
+
+  async function cargarMedidores() {
+    // Por ahora el medidor se muestra solo en el evento de fotos para video
+    if (!esVideo() || !grupos.length || !EVENTO_ID) return;
+    try {
+      const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenFamilia}` };
+      const grupoIds = grupos.map(g => g.id).join(',');
+      const [resM, resC] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/miembros?grupo_id=in.(${grupoIds})&select=id,grupo_id`, { headers }),
+        fetch(`${SUPABASE_URL}/rest/v1/confirmaciones?evento_id=eq.${EVENTO_ID}&select=miembro_id,adjunto_subido,asiste`, { headers }),
+      ]);
+      if (!resM.ok || !resC.ok) return;
+      const miembros = await resM.json();
+      const confs = await resC.json();
+      const necesitaAdjunto = eventoData.requiere_adjunto !== false;
+      const listos = new Set(confs.filter(c => necesitaAdjunto ? c.adjunto_subido : c.asiste).map(c => c.miembro_id));
+
+      let totalListos = 0;
+      grupos.forEach(g => {
+        const delGrupo = miembros.filter(m => m.grupo_id === g.id);
+        const n = delGrupo.filter(m => listos.has(m.id)).length;
+        totalListos += n;
+        const el = document.getElementById(`medidor-${g.id}`);
+        if (!el || !delGrupo.length) return;
+        el.innerHTML = htmlMedidor(n, delGrupo.length, '');
+        el.style.display = '';
+      });
+
+      const elTotal = document.getElementById('medidorTotal');
+      if (elTotal && grupos.length > 1 && miembros.length) {
+        elTotal.innerHTML = htmlMedidor(totalListos, miembros.length, 'En total: ');
+        elTotal.style.display = '';
+      }
+
+      // Animar las barras después de pintarlas
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.medidor-relleno').forEach(b => { b.style.width = b.dataset.pct + '%'; });
+      });
+    } catch (e) {
+      console.error('No se pudieron cargar los medidores', e);
+    }
   }
 
   async function seleccionarGrupo(id) {
@@ -1181,10 +1321,11 @@
     } else {
       comentariosArea.style.display = 'none';
     }
+    fotosSelec = { chiquita: null, actual: null, grupo: null };
 
     const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
     document.getElementById('fiestaNavNombre').textContent = eventoData.nombre;
-    document.getElementById('fiestaNavFecha').textContent = fecha;
+    document.getElementById('fiestaNavFecha').textContent = textoFechaEvento(fecha);
 
     // Reset upload
     document.getElementById('uploadArea').className = 'upload-area';
@@ -1199,7 +1340,7 @@
     // verlo o borrarlo, en vez de dejar la pantalla en blanco.
     const necesitaAdjunto = eventoData.requiere_adjunto !== false;
     const confExistente = confirmaciones[id];
-    if (necesitaAdjunto && confExistente && confExistente.adjunto_subido && confExistente.adjunto_url) {
+    if (!esVideo() && necesitaAdjunto && confExistente && confExistente.adjunto_subido && confExistente.adjunto_url) {
       document.getElementById('uploadArea').className = 'upload-area tiene-archivo';
       document.getElementById('uploadArchivoNombre').innerHTML =
         `✓ Ya enviaste ${nombreCortoAdjunto().toLowerCase()} ` +
@@ -1207,6 +1348,8 @@
         `<span class="btn-borrar-archivo" onclick="borrarArchivo(event)" title="Borrar">🗑️</span>`;
       document.getElementById('btnConfirmar').disabled = false;
     }
+    // En el video, el botón se habilita cuando están las dos fotos
+    if (esVideo()) renderFotosVideo();
 
     mostrarStep(3);
   }
@@ -1225,6 +1368,69 @@
     } catch (e) {
       mostrarError(`No se pudo abrir el ${nombreCortoAdjunto().toLowerCase()}.`);
     }
+  }
+
+  // ===== FOTOS PARA VIDEO =====
+  function fotosGuardadas() {
+    const conf = alumnaSeleccionada && confirmaciones[alumnaSeleccionada.id];
+    return (conf && conf.adjuntos) || {};
+  }
+
+  function renderFotosVideo() {
+    const guardadas = fotosGuardadas();
+    Object.keys(FOTOS_VIDEO).forEach(clave => {
+      const slot = document.getElementById(`slot-${clave}`);
+      const info = FOTOS_VIDEO[clave];
+      // grupo puede tener varias fotos; chiquita/actual, una sola
+      const nuevas = [].concat(fotosSelec[clave] || []);
+      const guardada = [].concat(guardadas[clave] || []);
+      if (nuevas.length) {
+        slot.className = 'foto-slot tiene-archivo';
+        slot.innerHTML = `<div class="fotos-mini">${nuevas.map(f => `<img alt="" src="${URL.createObjectURL(f)}">`).join('')}</div>` +
+          `<span class="foto-slot-titulo">✓ ${info.titulo}</span><span class="foto-slot-sub">Tocá para cambiar</span>`;
+      } else if (guardada.length) {
+        slot.className = 'foto-slot tiene-archivo';
+        // Por privacidad, las familias no pueden volver a ver las fotos
+        // (solo las coordinadoras); se indica que ya están enviadas.
+        slot.innerHTML = `<span style="font-size:24px">✅</span><span class="foto-slot-titulo">${info.titulo}</span>` +
+          `<span class="foto-slot-sub">${guardada.length > 1 ? guardada.length + ' enviadas' : 'Ya enviada'}<br>Tocá para cambiar</span>`;
+      } else {
+        slot.className = 'foto-slot';
+        slot.innerHTML = `<span style="font-size:24px">📷</span><span class="foto-slot-titulo">${info.titulo}</span><span class="foto-slot-sub">${info.sub}</span>`;
+      }
+    });
+    const completo = Object.keys(FOTOS_VIDEO)
+      .filter(c => FOTOS_VIDEO[c].obligatoria)
+      .every(c => fotosSelec[c] || guardadas[c]);
+    document.getElementById('btnConfirmar').disabled = !completo;
+  }
+
+  async function fotoVideoSeleccionada(clave, event) {
+    const info = FOTOS_VIDEO[clave];
+    let files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    if (info.max && files.length > info.max) {
+      mostrarError(`Elegí hasta ${info.max} fotos de grupo. Se tomaron las primeras ${info.max}.`);
+      files = files.slice(0, info.max);
+    } else {
+      document.getElementById('errorMsg').style.display = 'none';
+    }
+    const listas = [];
+    for (let file of files) {
+      if (file.type && file.type.startsWith('image/')) {
+        // Para el video conviene más resolución que para un comprobante
+        try { file = await comprimirImagen(file, 2400, 0.88); }
+        catch (e) { console.error('No se pudo comprimir la imagen, se sube tal cual', e); }
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        mostrarError('Una de las fotos supera el límite de 5 MB. Por favor elegí otra.');
+        return;
+      }
+      listas.push(file);
+    }
+    fotosSelec[clave] = info.max ? listas : listas[0];
+    renderFotosVideo();
   }
 
   // Redimensiona y recomprime una imagen en el navegador antes de
@@ -1321,7 +1527,8 @@
 
   async function confirmarAsistencia() {
     const necesitaAdjunto = eventoData.requiere_adjunto !== false;
-    if (necesitaAdjunto && !archivoSelec) return;
+    const video = esVideo();
+    if (necesitaAdjunto && !video && !archivoSelec) return;
     if (!alumnaSeleccionada) return;
 
     // Si faltaban datos del miembro (responsable, teléfono, DNI), se
@@ -1368,8 +1575,32 @@
       }
 
       let adjuntoUrl = null;
+      let adjuntos = null;
 
-      if (necesitaAdjunto) {
+      if (video) {
+        // Subir solo las fotos nuevas; las ya guardadas se mantienen
+        adjuntos = { ...fotosGuardadas() };
+        for (const clave of Object.keys(FOTOS_VIDEO)) {
+          if (!fotosSelec[clave]) continue;
+          const urls = [];
+          const lista = [].concat(fotosSelec[clave]);
+          for (let i = 0; i < lista.length; i++) {
+            const f = lista[i];
+            const ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+            const fileName = `${EVENTO_ID}/${clave}/${alumnaSeleccionada.id}_${i + 1}_${Date.now()}.${ext}`;
+            const resUp = await fetch(`${SUPABASE_URL}/storage/v1/object/comprobantes/${fileName}`, {
+              method: 'POST',
+              headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenFamilia}`, 'Content-Type': f.type || 'image/jpeg' },
+              body: f
+            });
+            if (!resUp.ok) throw new Error('Error al subir la foto');
+            urls.push(`${SUPABASE_URL}/storage/v1/object/comprobantes/${fileName}`);
+          }
+          adjuntos[clave] = FOTOS_VIDEO[clave].max ? urls : urls[0];
+        }
+        if (!adjuntos.chiquita || !adjuntos.actual) throw new Error('Faltan fotos');
+        adjuntoUrl = adjuntos.chiquita;
+      } else if (necesitaAdjunto) {
         // 1. Subir adjunto a Storage
         const ext = archivoSelec.name.split('.').pop();
         const fileName = `${EVENTO_ID}/${alumnaSeleccionada.id}_${Date.now()}.${ext}`;
@@ -1396,10 +1627,12 @@
       const confExistente = confirmaciones[alumnaSeleccionada.id];
       const body = { asiste: true };
       if (necesitaAdjunto) { body.adjunto_url = adjuntoUrl; body.adjunto_subido = true; }
+      if (video) body.adjuntos = adjuntos;
       if (comentarios) body.comentarios = comentarios;
 
+      let resConf;
       if (confExistente) {
-        await fetch(`${SUPABASE_URL}/rest/v1/confirmaciones?id=eq.${confExistente.id}`, {
+        resConf = await fetch(`${SUPABASE_URL}/rest/v1/confirmaciones?id=eq.${confExistente.id}`, {
           method: 'PATCH',
           headers: {
             apikey: SUPABASE_KEY,
@@ -1412,7 +1645,7 @@
         // Nota: "validado" ya no se manda desde acá — la política de
         // RLS/columnas no permite setearlo por insert, queda en false
         // por default hasta que la administradora lo valide.
-        await fetch(`${SUPABASE_URL}/rest/v1/confirmaciones`, {
+        resConf = await fetch(`${SUPABASE_URL}/rest/v1/confirmaciones`, {
           method: 'POST',
           headers: {
             apikey: SUPABASE_KEY,
@@ -1427,6 +1660,11 @@
         });
       }
 
+      if (video && !resConf.ok) throw new Error('No se pudo guardar');
+      if (video) {
+        confirmaciones[alumnaSeleccionada.id] = { ...(confExistente || {}), miembro_id: alumnaSeleccionada.id, ...body };
+      }
+
       // 3. Mostrar éxito
       const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
       document.getElementById('exitoDetalle').innerHTML = `
@@ -1434,7 +1672,8 @@
         <strong>Grupo:</strong> ${grupoSeleccionado.nombre}<br>
         <strong>Fiesta:</strong> ${eventoData.nombre}<br>
         <strong>Fecha:</strong> ${fecha}
-        ${necesitaAdjunto ? `<br><strong>${nombreCortoAdjunto()}:</strong> ${archivoSelec.name}` : ''}
+        ${video ? `<br><strong>Fotos:</strong> de chiquita ✓ · actual ✓${(adjuntos.grupo || []).length ? ` · de grupo (${adjuntos.grupo.length}) ✓` : ''}`
+          : necesitaAdjunto ? `<br><strong>${nombreCortoAdjunto()}:</strong> ${archivoSelec.name}` : ''}
       `;
 
       mostrarStep(4);
@@ -1461,6 +1700,7 @@
 
   function volverA(n) {
     mostrarStep(n);
+    if (n === 1) cargarMedidores();
     if (n === 2) {
       document.getElementById('buscadorInput').value = '';
       renderAlumnas(alumnas);
@@ -1500,6 +1740,7 @@
 
     const fiesta = eventoData.nombre || 'Fiesta';
     const headers = ['N°', 'Grupo', 'Apellido y Nombre', 'DNI', 'Responsable Mayor', 'Teléfono Responsable Mayor', 'Estado'];
+    if (esVideo()) headers.push('Fotos de grupo');
     const rows = [];
     let n = 1;
 
@@ -1518,7 +1759,8 @@
           m.dni || '',
           m.responsable_nombre || '',
           m.responsable_telefono || '',
-          estado
+          estado,
+          ...(esVideo() ? [((conf.adjuntos && conf.adjuntos.grupo) || []).length] : [])
         ]);
       });
     });
@@ -1635,9 +1877,102 @@
 
     lista.innerHTML = html;
 
+    document.getElementById('btnGaleria').style.display = esVideo() ? '' : 'none';
     document.getElementById('statTotal').textContent = todosMiembros.length;
     document.getElementById('statSubido').textContent = totalSubido + totalValidado;
     document.getElementById('statValidado').textContent = totalValidado;
+  }
+
+  // ===== GALERÍA DE FOTOS (evento de video) =====
+  // Las fotos se bajan con el token de coordinadora recién cuando
+  // aparecen en pantalla, para no descargar todo de una.
+  let galeriaGrupoId = null;
+  let galeriaObserver = null;
+  const galeriaCache = {}; // url -> objectURL
+
+  function abrirGaleria() {
+    if (!galeriaGrupoId && grupos.length) galeriaGrupoId = grupos[0].id;
+    mostrarStep(7);
+    renderGaleria();
+  }
+
+  function cerrarGaleria() {
+    mostrarStep(6);
+  }
+
+  function elegirGrupoGaleria(id) {
+    galeriaGrupoId = id;
+    renderGaleria();
+  }
+
+  function renderGaleria() {
+    const conFotos = m => { const c = todasConfirmaciones[m.id]; return c && c.adjunto_subido; };
+    const listas = todosMiembros.filter(conFotos).length;
+    document.getElementById('galeriaResumen').textContent = `${listas} de ${todosMiembros.length} ya mandaron sus fotos. Tocá una foto para verla grande.`;
+
+    document.getElementById('galeriaFiltros').innerHTML = grupos.map(g => {
+      const delGrupo = todosMiembros.filter(m => m.grupo_id === g.id);
+      return `<button class="galeria-chip ${g.id === galeriaGrupoId ? 'activo' : ''}" onclick="elegirGrupoGaleria('${g.id}')">${g.nombre} · ${delGrupo.filter(conFotos).length}/${delGrupo.length}</button>`;
+    }).join('');
+
+    const celda = (url, etiqueta) => url
+      ? `<div class="galeria-foto" data-url="${url}" onclick="verFotoGaleria(this)"><span>…</span><span class="galeria-etiqueta">${etiqueta}</span></div>`
+      : `<div class="galeria-foto falta">Falta<br>${etiqueta.toLowerCase()}</div>`;
+
+    const miembros = todosMiembros.filter(m => m.grupo_id === galeriaGrupoId);
+    document.getElementById('galeriaLista').innerHTML = miembros.map(m => {
+      const a = (todasConfirmaciones[m.id] && todasConfirmaciones[m.id].adjuntos) || {};
+      const grupo = [].concat(a.grupo || []);
+      const estado = a.chiquita && a.actual ? '✓ Completa' : 'Pendiente';
+      return `
+        <div class="galeria-fila">
+          <div class="galeria-nombre">${m.apellido_nombre}<span>${estado}</span></div>
+          <div class="galeria-fotos">
+            ${celda(a.chiquita, 'Chiquita')}
+            ${celda(a.actual, 'Actual')}
+            ${grupo.length ? grupo.map((u, i) => celda(u, 'Grupo ' + (i + 1))).join('') : '<div class="galeria-foto falta">Sin fotos<br>de grupo</div>'}
+          </div>
+        </div>`;
+    }).join('') || '<p style="color:#888;font-size:14px;text-align:center">No hay chicas en este grupo.</p>';
+
+    if (galeriaObserver) galeriaObserver.disconnect();
+    galeriaObserver = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (!en.isIntersecting) return;
+        galeriaObserver.unobserve(en.target);
+        cargarFotoGaleria(en.target);
+      });
+    }, { rootMargin: '200px' });
+    document.querySelectorAll('#galeriaLista .galeria-foto[data-url]').forEach(el => galeriaObserver.observe(el));
+  }
+
+  async function obtenerFotoAdmin(url) {
+    if (galeriaCache[url]) return galeriaCache[url];
+    const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenAdmin}` } });
+    if (!res.ok) throw new Error('No se pudo cargar la foto');
+    galeriaCache[url] = URL.createObjectURL(await res.blob());
+    return galeriaCache[url];
+  }
+
+  async function cargarFotoGaleria(el) {
+    try {
+      const src = await obtenerFotoAdmin(el.dataset.url);
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = src;
+      el.replaceChild(img, el.firstElementChild);
+    } catch (e) {
+      el.firstElementChild.textContent = 'No se pudo cargar';
+    }
+  }
+
+  async function verFotoGaleria(el) {
+    try {
+      document.getElementById('galeriaVisorImg').src = await obtenerFotoAdmin(el.dataset.url);
+      document.getElementById('galeriaVisor').classList.add('activo');
+    } catch (e) {
+      alert('No se pudo abrir la foto.');
+    }
   }
 
   // ===== AGREGAR MIEMBRO =====
@@ -1736,8 +2071,39 @@
 
     const linkComp = document.getElementById('modalComprobante');
     const btnValidar = document.getElementById('btnValidar');
+    const fotosExtra = document.getElementById('modalFotosExtra');
+    fotosExtra.innerHTML = '';
 
-    if (necesitaAdjunto && conf && conf.adjunto_url) {
+    if (esVideo() && conf && conf.adjuntos) {
+      // Un link por foto: de chiquita, actual y de grupo (hasta 2)
+      linkComp.style.display = 'none';
+      const fotos = [];
+      Object.keys(FOTOS_VIDEO).forEach(clave => {
+        const urls = [].concat(conf.adjuntos[clave] || []);
+        urls.forEach((url, i) => fotos.push([url, `📷 Ver foto ${FOTOS_VIDEO[clave].titulo.toLowerCase()}${urls.length > 1 ? ' ' + (i + 1) : ''}`]));
+      });
+      fotos.forEach(([url, texto]) => {
+        const link = document.createElement('a');
+        link.href = '#';
+        link.className = 'btn-link';
+        link.style.display = 'block';
+        link.textContent = texto;
+        link.onclick = async (e) => {
+          e.preventDefault();
+          link.textContent = '📷 Cargando...';
+          try {
+            const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenAdmin}` } });
+            if (!res.ok) throw new Error();
+            window.open(URL.createObjectURL(await res.blob()), '_blank');
+          } catch (err) {
+            alert('No se pudo abrir la foto.');
+          } finally {
+            link.textContent = texto;
+          }
+        };
+        fotosExtra.appendChild(link);
+      });
+    } else if (necesitaAdjunto && conf && conf.adjunto_url) {
       linkComp.style.display = 'block';
       linkComp.textContent = `📎 Ver ${nombreCortoAdjunto().toLowerCase()}`;
       linkComp.href = '#';
