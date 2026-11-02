@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ColectaExpress</title>
+<script>
+  // Eventos de "fotos para video": se reconocen por el link para mostrar
+  // la guarda de confeti desde el primer instante (sin parpadeo del
+  // encabezado general mientras carga el evento).
+  window.SLUGS_VIDEO = ['video-egresadas'];
+  (function () {
+    var m = location.pathname.match(/\/e\/([^/?#]+)/);
+    var slug = (m && decodeURIComponent(m[1])) || new URLSearchParams(location.search).get('e');
+    if (window.SLUGS_VIDEO.indexOf(slug) !== -1) document.documentElement.classList.add('pre-video');
+  })();
+</script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-VY2M1TWLBM"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -82,9 +93,14 @@
   .guarda-confeti { display: none; position: relative; height: 120px; overflow: hidden;
     background: linear-gradient(180deg, #2E1F55 0%, var(--azul) 100%); }
   .guarda-confeti canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  body.modo-video .guarda-confeti { display: block; }
+  body.modo-video .guarda-confeti,
+  html.pre-video .guarda-confeti { display: block; }
   body.modo-video .cinta-fondo,
-  body.modo-video .header-texto { display: none; }
+  body.modo-video .header-texto,
+  html.pre-video .cinta-fondo,
+  html.pre-video .header-texto,
+  html.pre-video #fiestaStep1Label,
+  html.pre-video .screenshot-aviso { display: none; }
   @media (min-width: 700px) { .guarda-confeti { height: 160px; } }
 
   /* CONTENIDO */
@@ -196,6 +212,8 @@
   .foto-slot .fotos-mini img { flex: 1; min-width: 0; }
   .foto-slot-titulo { font-size: 13px; font-weight: 600; color: var(--azul); }
   .foto-slot-sub { font-size: 11px; color: var(--gris-texto); }
+  .foto-slot.baja-calidad { border-color: var(--dorado); background: #FBF5E4; }
+  .aviso-calidad { display: none; background: #FBF5E4; border: 1px solid var(--dorado-claro); color: #6B5410; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.45; margin-bottom: 14px; }
 
   /* BUSCADOR */
   .buscador {
@@ -771,6 +789,7 @@
         <div class="foto-slot" id="slot-actual" onclick="document.getElementById('fileInput-actual').click()"></div>
         <div class="foto-slot" id="slot-grupo" onclick="document.getElementById('fileInput-grupo').click()"></div>
       </div>
+      <div class="aviso-calidad" id="avisoCalidad"></div>
       <input type="file" id="fileInput-chiquita" accept="image/*" style="display:none" onchange="fotoVideoSeleccionada('chiquita', event)">
       <input type="file" id="fileInput-actual" accept="image/*" style="display:none" onchange="fotoVideoSeleccionada('actual', event)">
       <input type="file" id="fileInput-grupo" accept="image/*" multiple style="display:none" onchange="fotoVideoSeleccionada('grupo', event)">
@@ -1013,6 +1032,8 @@
   let alumnaSeleccionada = null;
   let archivoSelec = null;
   let fotosSelec = { chiquita: null, actual: null, grupo: null }; // archivos nuevos de esta visita (grupo: array)
+  let bajaCalidad = {}; // clave -> true si alguna foto nueva elegida es chica
+  const MIN_LADO_FOTO = 1000; // px del lado más largo; debajo de esto se ve borrosa en el video
   let alumnas = [];
   let confirmaciones = {};
   let eventoData = { nombre: 'Fiesta 3', fecha: '2026-07-01' };
@@ -1039,17 +1060,7 @@
       const data = await res.json();
       if (data && data[0]) {
         eventoData = data[0];
-        if (esVideo()) {
-          activarGuardaConfeti();
-          // Textos propios del evento de video
-          document.getElementById('fiestaStep1Label').style.display = 'none';
-          document.getElementById('tituloSeleccion').textContent = 'Seleccioná tu clase';
-          document.getElementById('navCambiarGrupo').textContent = '← Cambiar clase';
-          document.getElementById('btnAccesoAdmin').textContent = 'Comité video';
-          document.getElementById('pinTitulo').textContent = '🔐 Comité video';
-          document.getElementById('adminTitulo').textContent = 'Comité video';
-          document.getElementById('screenshotAviso').style.display = 'none';
-        }
+        if (esVideo()) aplicarModoVideo();
         const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
         document.getElementById('fiestaStep1Nombre').textContent = eventoData.nombre;
         document.getElementById('fiestaStep1Fecha').textContent = textoFechaEvento(fecha);
@@ -1098,6 +1109,18 @@
       </div>
     `).join('');
     cargarMedidores();
+  }
+
+  // Encabezado y textos propios del evento de video
+  function aplicarModoVideo() {
+    activarGuardaConfeti();
+    document.getElementById('fiestaStep1Label').style.display = 'none';
+    document.getElementById('tituloSeleccion').textContent = 'Seleccioná tu clase';
+    document.getElementById('navCambiarGrupo').textContent = '← Cambiar clase';
+    document.getElementById('btnAccesoAdmin').textContent = 'Comité video';
+    document.getElementById('pinTitulo').textContent = '🔐 Comité video';
+    document.getElementById('adminTitulo').textContent = 'Comité video';
+    document.getElementById('screenshotAviso').style.display = 'none';
   }
 
   // ===== GUARDA DE CONFETI =====
@@ -1471,6 +1494,7 @@
       comentariosArea.style.display = 'none';
     }
     fotosSelec = { chiquita: null, actual: null, grupo: null };
+    bajaCalidad = {};
 
     const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
     document.getElementById('fiestaNavNombre').textContent = eventoData.nombre;
@@ -1534,9 +1558,9 @@
       const nuevas = [].concat(fotosSelec[clave] || []);
       const guardada = [].concat(guardadas[clave] || []);
       if (nuevas.length) {
-        slot.className = 'foto-slot tiene-archivo';
+        slot.className = 'foto-slot tiene-archivo' + (bajaCalidad[clave] ? ' baja-calidad' : '');
         slot.innerHTML = `<div class="fotos-mini">${nuevas.map(f => `<img alt="" src="${URL.createObjectURL(f)}">`).join('')}</div>` +
-          `<span class="foto-slot-titulo">✓ ${info.titulo}</span><span class="foto-slot-sub">Tocá para cambiar</span>`;
+          `<span class="foto-slot-titulo">${bajaCalidad[clave] ? '⚠️' : '✓'} ${info.titulo}</span><span class="foto-slot-sub">Tocá para cambiar</span>`;
       } else if (guardada.length) {
         slot.className = 'foto-slot tiene-archivo';
         // Por privacidad, las familias no pueden volver a ver las fotos
@@ -1548,10 +1572,33 @@
         slot.innerHTML = `<span style="font-size:24px">📷</span><span class="foto-slot-titulo">${info.titulo}</span><span class="foto-slot-sub">${info.sub}</span>`;
       }
     });
+    // Aviso (no bloquea): fotos chicas que pueden verse borrosas
+    const flojas = Object.keys(FOTOS_VIDEO).filter(c => bajaCalidad[c] && fotosSelec[c]);
+    const aviso = document.getElementById('avisoCalidad');
+    if (flojas.length) {
+      const nombres = flojas.map(c => FOTOS_VIDEO[c].titulo).join(' y ');
+      aviso.innerHTML = `⚠️ <strong>${flojas.length > 1 ? 'Las fotos' : 'La foto'} de ${nombres}</strong> ${flojas.length > 1 ? 'son' : 'es'} de baja calidad y ${flojas.length > 1 ? 'pueden' : 'puede'} verse borrosa${flojas.length > 1 ? 's' : ''} en el video. Si tenés una mejor, cambiala. Si no, podés confirmar igual.`;
+      aviso.style.display = 'block';
+    } else {
+      aviso.style.display = 'none';
+    }
+
     const completo = Object.keys(FOTOS_VIDEO)
       .filter(c => FOTOS_VIDEO[c].obligatoria)
       .every(c => fotosSelec[c] || guardadas[c]);
     document.getElementById('btnConfirmar').disabled = !completo;
+  }
+
+  // Lado más largo de la imagen original, en px (null si el navegador
+  // no la puede leer, p. ej. HEIC fuera de Safari: en ese caso no se avisa)
+  function ladoMayorImagen(file) {
+    return new Promise(resolve => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => { URL.revokeObjectURL(url); resolve(Math.max(img.naturalWidth, img.naturalHeight)); };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
   }
 
   async function fotoVideoSeleccionada(clave, event) {
@@ -1566,7 +1613,10 @@
       document.getElementById('errorMsg').style.display = 'none';
     }
     const listas = [];
+    let alguna_chica = false;
     for (let file of files) {
+      const lado = await ladoMayorImagen(file);
+      if (lado && lado < MIN_LADO_FOTO) alguna_chica = true;
       if (file.type && file.type.startsWith('image/')) {
         // Para el video conviene más resolución que para un comprobante
         try { file = await comprimirImagen(file, 2400, 0.88); }
@@ -1579,6 +1629,7 @@
       listas.push(file);
     }
     fotosSelec[clave] = info.max ? listas : listas[0];
+    bajaCalidad[clave] = alguna_chica;
     renderFotosVideo();
   }
 
@@ -1863,6 +1914,9 @@
     cargarAlumnas(grupoSeleccionado.id);
   }
 
+  // Si el link ya dice que es el evento de video, aplicar el diseño
+  // antes de esperar a que cargue el evento
+  if (document.documentElement.classList.contains('pre-video')) aplicarModoVideo();
   init();
 
   function copiarGrupo(id, event) {
