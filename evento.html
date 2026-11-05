@@ -206,7 +206,15 @@
   .galeria-visor img { max-width: 100%; max-height: 100%; border-radius: 6px; }
 
   /* FOTOS PARA VIDEO (dos fotos por persona) */
-  .fotos-video { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .fotos-video { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+  .foto-slot.slot-grupo { grid-column: 1 / -1; cursor: default; min-height: 0; padding: 10px; align-items: stretch; }
+  .slot-grupo-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .grupo-mosaicos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .grupo-mosaico { position: relative; height: 96px; border-radius: 8px; overflow: hidden; background: var(--verde-claro); border: 1.5px solid var(--verde); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: var(--verde); font-weight: 600; }
+  .grupo-mosaico.baja-calidad { border-color: var(--dorado); background: #FBF5E4; }
+  .slot-grupo .grupo-mosaico img { width: 100%; height: 100%; object-fit: cover; border-radius: 0; }
+  .grupo-quitar { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(0,0,0,0.6); color: #fff; font-size: 14px; line-height: 26px; cursor: pointer; padding: 0; }
+  .grupo-agregar { height: 96px; border: 2px dashed var(--gris-borde); border-radius: 8px; background: var(--blanco); color: var(--azul); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
   .foto-slot { border: 2px dashed var(--gris-borde); border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
   .foto-slot.tiene-archivo { border-style: solid; border-color: var(--verde); background: var(--verde-claro); }
   .foto-slot img { width: 100%; height: 80px; object-fit: cover; border-radius: 6px; }
@@ -789,12 +797,12 @@
       <div class="fotos-video" id="fotosVideo" style="display:none">
         <div class="foto-slot" id="slot-chiquita" onclick="document.getElementById('fileInput-chiquita').click()"></div>
         <div class="foto-slot" id="slot-actual" onclick="document.getElementById('fileInput-actual').click()"></div>
-        <div class="foto-slot" id="slot-grupo" onclick="document.getElementById('fileInput-grupo').click()"></div>
+        <div class="foto-slot slot-grupo" id="slot-grupo"></div>
       </div>
       <div class="aviso-calidad" id="avisoCalidad"></div>
-      <input type="file" id="fileInput-chiquita" accept="image/*" style="display:none" onchange="fotoVideoSeleccionada('chiquita', event)">
-      <input type="file" id="fileInput-actual" accept="image/*" style="display:none" onchange="fotoVideoSeleccionada('actual', event)">
-      <input type="file" id="fileInput-grupo" accept="image/*" multiple style="display:none" onchange="fotoVideoSeleccionada('grupo', event)">
+      <input type="file" id="fileInput-chiquita" accept="image/*,.heic,.heif" style="display:none" onchange="fotoVideoSeleccionada('chiquita', event)">
+      <input type="file" id="fileInput-actual" accept="image/*,.heic,.heif" style="display:none" onchange="fotoVideoSeleccionada('actual', event)">
+      <input type="file" id="fileInput-grupo" accept="image/*,.heic,.heif" multiple style="display:none" onchange="fotoVideoSeleccionada('grupo', event)">
 
       <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
         <div class="upload-icon">📎</div>
@@ -992,7 +1000,7 @@
   const FOTOS_VIDEO = {
     chiquita: { titulo: '1er grado', sub: 'Foto de cuando estaba en 1er grado', obligatoria: true },
     actual: { titulo: 'Actual', sub: 'Sola y de frente', obligatoria: true },
-    grupo: { titulo: 'Grupo', sub: 'Opcional · hasta 2', obligatoria: false, max: 2 },
+    grupo: { titulo: 'Grupo', sub: 'Opcional · hasta 2 fotos', obligatoria: false, max: 2 },
   };
   function esVideo() { return eventoData.tipo_adjunto === 'video'; }
   // En el evento de video lo importante es hasta cuándo se pueden subir las fotos
@@ -1035,6 +1043,10 @@
   let archivoSelec = null;
   let fotosSelec = { chiquita: null, actual: null, grupo: null }; // archivos nuevos de esta visita (grupo: array)
   let bajaCalidad = {}; // clave -> true si alguna foto nueva elegida es chica
+  // Fotos de grupo: lista editable de hasta 2. Cada item es una ya enviada
+  // ({ url }) o una nueva elegida en esta visita ({ file, chica }).
+  let grupoItems = [];
+  let grupoCambiado = false;
   const MIN_LADO_FOTO = 1000; // px del lado más largo; debajo de esto se ve borrosa en el video
   let alumnas = [];
   let confirmaciones = {};
@@ -1497,6 +1509,8 @@
     }
     fotosSelec = { chiquita: null, actual: null, grupo: null };
     bajaCalidad = {};
+    grupoItems = [].concat((((confirmaciones[id] || {}).adjuntos) || {}).grupo || []).map(url => ({ url }));
+    grupoCambiado = false;
 
     const fecha = eventoData.fecha ? new Date(eventoData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
     document.getElementById('fiestaNavNombre').textContent = eventoData.nombre;
@@ -1553,10 +1567,9 @@
 
   function renderFotosVideo() {
     const guardadas = fotosGuardadas();
-    Object.keys(FOTOS_VIDEO).forEach(clave => {
+    Object.keys(FOTOS_VIDEO).filter(c => c !== 'grupo').forEach(clave => {
       const slot = document.getElementById(`slot-${clave}`);
       const info = FOTOS_VIDEO[clave];
-      // grupo puede tener varias fotos; chiquita/actual, una sola
       const nuevas = [].concat(fotosSelec[clave] || []);
       const guardada = [].concat(guardadas[clave] || []);
       if (nuevas.length) {
@@ -1574,8 +1587,12 @@
         slot.innerHTML = `<span style="font-size:24px">📷</span><span class="foto-slot-titulo">${info.titulo}</span><span class="foto-slot-sub">${info.sub}</span>`;
       }
     });
+    renderSlotGrupo();
+
     // Aviso (no bloquea): fotos chicas que pueden verse borrosas
-    const flojas = Object.keys(FOTOS_VIDEO).filter(c => bajaCalidad[c] && fotosSelec[c]);
+    const flojas = Object.keys(FOTOS_VIDEO).filter(c => c === 'grupo'
+      ? grupoItems.some(it => it.file && it.chica)
+      : bajaCalidad[c] && fotosSelec[c]);
     const aviso = document.getElementById('avisoCalidad');
     if (flojas.length) {
       const nombres = flojas.map(c => FOTOS_VIDEO[c].titulo).join(' y ');
@@ -1589,6 +1606,74 @@
       .filter(c => FOTOS_VIDEO[c].obligatoria)
       .every(c => fotosSelec[c] || guardadas[c]);
     document.getElementById('btnConfirmar').disabled = !completo;
+  }
+
+  // Casilla de grupo: mosaicos con ✕ para quitar y un botón para agregar
+  function renderSlotGrupo() {
+    const slot = document.getElementById('slot-grupo');
+    const info = FOTOS_VIDEO.grupo;
+    slot.className = 'foto-slot slot-grupo' + (grupoItems.length ? ' tiene-archivo' : '');
+    const mosaicos = grupoItems.map((it, i) => it.file
+      ? `<div class="grupo-mosaico ${it.chica ? 'baja-calidad' : ''}"><img alt="" src="${it.preview}"><button class="grupo-quitar" title="Quitar" onclick="quitarFotoGrupo(${i}, event)">✕</button></div>`
+      // Por privacidad las familias no ven las fotos ya enviadas
+      : `<div class="grupo-mosaico"><span style="font-size:22px">✅</span>Foto ${i + 1} enviada<button class="grupo-quitar" title="Quitar" onclick="quitarFotoGrupo(${i}, event)">✕</button></div>`);
+    if (grupoItems.length < info.max) {
+      mosaicos.push(`<button class="grupo-agregar" onclick="document.getElementById('fileInput-grupo').click()">＋ Agregar ${grupoItems.length ? 'otra foto' : 'foto de grupo'}</button>`);
+    }
+    slot.innerHTML = `<div class="slot-grupo-cab"><span class="foto-slot-titulo">📷 ${info.titulo}</span><span class="foto-slot-sub">${info.sub} · ${grupoItems.length} de ${info.max}</span></div>` +
+      `<div class="grupo-mosaicos">${mosaicos.join('')}</div>`;
+  }
+
+  function quitarFotoGrupo(i, event) {
+    event.stopPropagation();
+    grupoItems.splice(i, 1);
+    grupoCambiado = true;
+    renderFotosVideo();
+  }
+
+  // HEIC (fotos de iPhone): muchos navegadores no las pueden abrir. Se
+  // convierten a JPG en el teléfono con heic2any, que se carga solo si hace falta.
+  function esHeic(file) {
+    return /hei[cf]/i.test(file.type || '') || /\.hei[cf]$/i.test(file.name || '');
+  }
+  let heic2anyPromesa = null;
+  function cargarHeic2any() {
+    if (!heic2anyPromesa) {
+      heic2anyPromesa = new Promise((resolve, reject) => {
+        const sc = document.createElement('script');
+        sc.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+        sc.onload = () => resolve(window.heic2any);
+        sc.onerror = () => { heic2anyPromesa = null; reject(new Error('No se pudo cargar el conversor HEIC')); };
+        document.head.appendChild(sc);
+      });
+    }
+    return heic2anyPromesa;
+  }
+  async function heicAJpg(blob, nombre) {
+    const conv = await cargarHeic2any();
+    let out = await conv({ blob, toType: 'image/jpeg', quality: 0.92 });
+    if (Array.isArray(out)) out = out[0];
+    return new File([out], (nombre || 'foto').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  }
+
+  // Deja la foto lista para subir: la decodifica (convirtiendo HEIC si hace
+  // falta), mide su tamaño original y la comprime. Devuelve { file, lado }.
+  async function prepararFotoVideo(file) {
+    const pareceImagen = (file.type || '').startsWith('image/') || /\.(jpe?g|png|webp|gif|hei[cf])$/i.test(file.name || '');
+    if (!pareceImagen) return { file, lado: null };
+    let lado = await ladoMayorImagen(file);
+    if (lado === null && esHeic(file)) {
+      try { file = await heicAJpg(file, file.name); lado = await ladoMayorImagen(file); }
+      catch (e) { console.error('No se pudo convertir HEIC', e); }
+    }
+    if (lado !== null) {
+      try { file = await comprimirImagen(file, 2400, 0.88); }
+      catch (e) { console.error('No se pudo comprimir la imagen, se sube tal cual', e); }
+    } else if (esHeic(file) && !file.type) {
+      // Último recurso: se sube el HEIC original con el tipo correcto
+      file = new File([file], file.name, { type: 'image/heic' });
+    }
+    return { file, lado };
   }
 
   // Lado más largo de la imagen original, en px (null si el navegador
@@ -1608,30 +1693,30 @@
     let files = Array.from(event.target.files || []);
     event.target.value = '';
     if (!files.length) return;
-    if (info.max && files.length > info.max) {
-      mostrarError(`Elegí hasta ${info.max} fotos de grupo. Se tomaron las primeras ${info.max}.`);
-      files = files.slice(0, info.max);
-    } else {
-      document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    if (clave === 'grupo') {
+      const lugar = info.max - grupoItems.length;
+      if (files.length > lugar) {
+        mostrarError(`Se pueden subir hasta ${info.max} fotos de grupo. Se agregó ${lugar === 1 ? 'la primera' : 'las primeras ' + lugar}.`);
+        files = files.slice(0, Math.max(lugar, 0));
+      }
     }
     const listas = [];
-    let alguna_chica = false;
-    for (let file of files) {
-      const lado = await ladoMayorImagen(file);
-      if (lado && lado < MIN_LADO_FOTO) alguna_chica = true;
-      if (file.type && file.type.startsWith('image/')) {
-        // Para el video conviene más resolución que para un comprobante
-        try { file = await comprimirImagen(file, 2400, 0.88); }
-        catch (e) { console.error('No se pudo comprimir la imagen, se sube tal cual', e); }
-      }
+    for (const original of files) {
+      const { file, lado } = await prepararFotoVideo(original);
       if (file.size > 5 * 1024 * 1024) {
         mostrarError('Una de las fotos supera el límite de 5 MB. Por favor elegí otra.');
         return;
       }
-      listas.push(file);
+      listas.push({ file, chica: !!(lado && lado < MIN_LADO_FOTO) });
     }
-    fotosSelec[clave] = info.max ? listas : listas[0];
-    bajaCalidad[clave] = alguna_chica;
+    if (clave === 'grupo') {
+      listas.forEach(x => grupoItems.push({ file: x.file, chica: x.chica, preview: URL.createObjectURL(x.file) }));
+      grupoCambiado = true;
+    } else {
+      fotosSelec[clave] = listas[0].file;
+      bajaCalidad[clave] = listas[0].chica;
+    }
     renderFotosVideo();
   }
 
@@ -1782,8 +1867,27 @@
       if (video) {
         // Subir solo las fotos nuevas; las ya guardadas se mantienen
         adjuntos = { ...fotosGuardadas() };
+        const subirFoto = async (clave, f, n) => {
+          const ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+          const fileName = `${EVENTO_ID}/${clave}/${alumnaSeleccionada.id}_${n}_${Date.now()}.${ext}`;
+          const resUp = await fetch(`${SUPABASE_URL}/storage/v1/object/comprobantes/${fileName}`, {
+            method: 'POST',
+            headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenFamilia}`, 'Content-Type': f.type || 'image/jpeg' },
+            body: f
+          });
+          if (!resUp.ok) throw new Error('Error al subir la foto');
+          return `${SUPABASE_URL}/storage/v1/object/comprobantes/${fileName}`;
+        };
+        if (grupoCambiado) {
+          const urls = [];
+          for (let i = 0; i < grupoItems.length; i++) {
+            const it = grupoItems[i];
+            urls.push(it.url || await subirFoto('grupo', it.file, i + 1));
+          }
+          adjuntos.grupo = urls;
+        }
         for (const clave of Object.keys(FOTOS_VIDEO)) {
-          if (!fotosSelec[clave]) continue;
+          if (clave === 'grupo' || !fotosSelec[clave]) continue;
           const urls = [];
           const lista = [].concat(fotosSelec[clave]);
           for (let i = 0; i < lista.length; i++) {
@@ -1874,7 +1978,7 @@
         <strong>Grupo:</strong> ${grupoSeleccionado.nombre}<br>
         <strong>Fiesta:</strong> ${eventoData.nombre}<br>
         <strong>Fecha:</strong> ${fecha}
-        ${video ? `<br><strong>Fotos:</strong> 1er grado ✓ · actual ✓${(adjuntos.grupo || []).length ? ` · grupo (${adjuntos.grupo.length}) ✓` : ''}`
+        ${video ? `<br><strong>Fotos:</strong> 1er grado ✓ · actual ✓${[].concat(adjuntos.grupo || []).length ? ` · grupo (${[].concat(adjuntos.grupo).length}) ✓` : ''}`
           : necesitaAdjunto ? `<br><strong>${nombreCortoAdjunto()}:</strong> ${archivoSelec.name}` : ''}
       `;
 
@@ -2155,7 +2259,11 @@
     if (galeriaCache[url]) return galeriaCache[url];
     const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenAdmin}` } });
     if (!res.ok) throw new Error('No se pudo cargar la foto');
-    galeriaCache[url] = URL.createObjectURL(await res.blob());
+    let blob = await res.blob();
+    if (/\.hei[cf]$/i.test(url) || /hei[cf]/i.test(blob.type)) {
+      try { blob = await heicAJpg(blob, 'foto.heic'); } catch (e) { console.error(e); }
+    }
+    galeriaCache[url] = URL.createObjectURL(blob);
     return galeriaCache[url];
   }
 
