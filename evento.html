@@ -205,6 +205,17 @@
   .galeria-visor.activo { display: flex; }
   .galeria-visor img { max-width: 100%; max-height: 100%; border-radius: 6px; }
 
+  /* POPURRÍ (fotos extra de grupo, sin elegir chica) */
+  .btn-popurri { display: none; width: 100%; margin-top: 16px; border: 2px dashed var(--azul); background: #F3EEFB; color: var(--azul); border-radius: 12px; padding: 14px 16px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; text-align: left; }
+  .btn-popurri span { display: block; font-size: 12px; font-weight: 500; color: var(--gris-texto); margin-top: 3px; }
+  html.pre-video .btn-popurri, body.modo-video .btn-popurri { display: block; }
+  .popurri-grilla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .popurri-grilla .grupo-mosaico { height: 100px; }
+  .popurri-grilla .grupo-mosaico img { width: 100%; height: 100%; object-fit: cover; }
+  .popurri-grilla .grupo-agregar { height: 100px; }
+  .galeria-popurri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .galeria-popurri .galeria-foto { aspect-ratio: 1; }
+
   /* FOTOS PARA VIDEO (dos fotos por persona) */
   .fotos-video { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
   .foto-slot.slot-grupo { grid-column: 1 / -1; cursor: default; min-height: 0; padding: 10px; align-items: stretch; }
@@ -725,6 +736,7 @@
       <div class="medidor medidor-total" id="medidorTotal" style="display:none;padding:0"></div>
       <div class="grupo-grid" id="grupoGrid"></div>
     </div>
+    <button class="btn-popurri" onclick="abrirPopurri()">📸 Popurrí de fotos<span>¿Tenés fotos de grupo de estos años (actos, campamentos, cumpleaños)? Subilas acá, todas las que quieras.</span></button>
   </div>
 
   <!-- STEP 2: LISTA DE ALUMNAS -->
@@ -885,6 +897,30 @@
     </div>
 
     <div id="adminLista"></div>
+  </div>
+
+  <!-- STEP 8: POPURRÍ (cualquiera sube fotos de grupo extra) -->
+  <div class="step" id="step8">
+    <div class="nav-back" onclick="volverA(1)">← Volver</div>
+    <p class="seccion-titulo">📸 Popurrí de fotos</p>
+    <p class="seccion-subtitulo">Fotos de grupo de todos estos años: actos, campamentos, cumpleaños, salidas. Podés subir hasta 10 por vez, y volver a entrar para subir más.</p>
+    <div class="card" id="popurriCard">
+      <div class="campo-form">
+        <label for="popurriNombre">Tu nombre (opcional)</label>
+        <input type="text" id="popurriNombre" maxlength="40" placeholder="Ej: mamá de Sofía (6B)">
+      </div>
+      <div class="popurri-grilla" id="popurriGrilla"></div>
+      <input type="file" id="fileInput-popurri" accept="image/*,.heic,.heif" multiple style="display:none" onchange="popurriSeleccion(event)">
+      <div class="aviso-calidad" id="popurriAviso"></div>
+      <div class="error-msg" id="popurriError"></div>
+      <button class="btn btn-primario" id="btnPopurri" onclick="subirPopurri()" disabled>Subir fotos</button>
+    </div>
+    <div class="card" id="popurriOk" style="display:none;text-align:center">
+      <p style="font-size:40px">🎉</p>
+      <p class="seccion-titulo" id="popurriOkTxt" style="margin:8px 0 14px"></p>
+      <button class="btn btn-primario" onclick="abrirPopurri()">Subir más fotos</button>
+      <button class="btn btn-secundario" style="margin-top:10px" onclick="volverA(1)">Volver</button>
+    </div>
   </div>
 
   <!-- STEP 7: GALERÍA DE FOTOS (solo coordinadoras, evento de video) -->
@@ -2192,6 +2228,111 @@
     document.getElementById('statValidado').textContent = totalValidado;
   }
 
+  // ===== POPURRÍ =====
+  // Cualquiera (con el link) sube fotos de grupo sin elegir a una chica.
+  // Van a <evento>/popurri/ en el Storage; solo el comité puede verlas.
+  const POPURRI_MAX = 10;
+  let popurriItems = []; // { file, preview, chica }
+
+  function abrirPopurri() {
+    popurriItems = [];
+    document.getElementById('popurriCard').style.display = '';
+    document.getElementById('popurriOk').style.display = 'none';
+    document.getElementById('popurriError').style.display = 'none';
+    renderPopurri();
+    mostrarStep(8);
+  }
+
+  function renderPopurri() {
+    const t = popurriItems.map((it, i) => `<div class="grupo-mosaico ${it.chica ? 'baja-calidad' : ''}"><img alt="" src="${it.preview}"><button class="grupo-quitar" title="Quitar" onclick="quitarPopurri(${i})">✕</button></div>`);
+    if (popurriItems.length < POPURRI_MAX) t.push(`<button class="grupo-agregar" onclick="document.getElementById('fileInput-popurri').click()">＋ ${popurriItems.length ? 'Agregar más' : 'Elegir fotos'}</button>`);
+    document.getElementById('popurriGrilla').innerHTML = t.join('');
+    const flojas = popurriItems.filter(it => it.chica).length;
+    const av = document.getElementById('popurriAviso');
+    av.style.display = flojas ? 'block' : 'none';
+    av.innerHTML = flojas ? `⚠️ ${flojas > 1 ? flojas + ' fotos son' : 'Una foto es'} de baja calidad (marcada${flojas > 1 ? 's' : ''} en amarillo) y puede${flojas > 1 ? 'n' : ''} verse borrosa${flojas > 1 ? 's' : ''}. Si tenés una mejor, cambiala; si no, subila igual.` : '';
+    const btn = document.getElementById('btnPopurri');
+    btn.disabled = !popurriItems.length;
+    btn.textContent = popurriItems.length ? `Subir ${popurriItems.length} foto${popurriItems.length > 1 ? 's' : ''}` : 'Subir fotos';
+  }
+
+  function quitarPopurri(i) { popurriItems.splice(i, 1); renderPopurri(); }
+
+  async function popurriSeleccion(event) {
+    let files = Array.from(event.target.files || []);
+    event.target.value = '';
+    const err = document.getElementById('popurriError');
+    err.style.display = 'none';
+    const lugar = POPURRI_MAX - popurriItems.length;
+    if (files.length > lugar) {
+      err.textContent = `Se pueden subir hasta ${POPURRI_MAX} por vez. Se agregaron las primeras ${lugar}; después podés subir más.`;
+      err.style.display = 'block';
+      files = files.slice(0, lugar);
+    }
+    document.getElementById('btnPopurri').disabled = true;
+    for (const original of files) {
+      const { file, lado } = await prepararFotoVideo(original);
+      if (file.size > 5 * 1024 * 1024) continue;
+      popurriItems.push({ file, preview: URL.createObjectURL(file), chica: !!(lado && lado < MIN_LADO_FOTO) });
+      renderPopurri();
+    }
+    renderPopurri();
+  }
+
+  async function subirPopurri() {
+    if (!popurriItems.length) return;
+    const btn = document.getElementById('btnPopurri');
+    const err = document.getElementById('popurriError');
+    err.style.display = 'none';
+    btn.disabled = true;
+    const quien = (document.getElementById('popurriNombre').value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'anonimo';
+    let ok = 0;
+    for (let i = 0; i < popurriItems.length; i++) {
+      btn.textContent = `Subiendo ${i + 1} de ${popurriItems.length}…`;
+      const f = popurriItems[i].file;
+      const ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+      const nombre = `${EVENTO_ID}/popurri/${Date.now()}_${i + 1}_${quien}.${ext}`;
+      try {
+        const r = await fetch(`${SUPABASE_URL}/storage/v1/object/comprobantes/${nombre}`, {
+          method: 'POST',
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenFamilia}`, 'Content-Type': f.type || 'image/jpeg' },
+          body: f
+        });
+        if (r.ok) ok++;
+      } catch (e) { console.error(e); }
+    }
+    if (!ok) {
+      err.textContent = 'No se pudieron subir las fotos. Revisá la conexión y probá de nuevo.';
+      err.style.display = 'block';
+      renderPopurri();
+      return;
+    }
+    const fallaron = popurriItems.length - ok;
+    document.getElementById('popurriOkTxt').textContent = `¡Gracias! Se subieron ${ok} foto${ok > 1 ? 's' : ''}.` + (fallaron ? ` (${fallaron} no se pudo${fallaron > 1 ? 'ieron' : ''} subir; probá de nuevo con esa${fallaron > 1 ? 's' : ''}.)` : '');
+    popurriItems = [];
+    document.getElementById('popurriCard').style.display = 'none';
+    document.getElementById('popurriOk').style.display = '';
+  }
+
+  // Lista de fotos del popurrí (solo comité: la política del Storage
+  // no deja listar esta carpeta con el permiso de familia)
+  let popurriLista = null;
+  async function cargarPopurriAdmin() {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/storage/v1/object/list/comprobantes`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenAdmin}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefix: `${EVENTO_ID}/popurri`, limit: 1000, offset: 0, sortBy: { column: 'created_at', order: 'desc' } })
+      });
+      const items = r.ok ? await r.json() : [];
+      popurriLista = items.filter(x => x.id).map(x => ({
+        url: `${SUPABASE_URL}/storage/v1/object/comprobantes/${EVENTO_ID}/popurri/${x.name}`,
+        quien: (x.name.match(/^\d+_\d+_(.+)\.[^.]+$/) || [])[1] || ''
+      }));
+    } catch (e) { popurriLista = []; }
+  }
+
   // ===== GALERÍA DE FOTOS (evento de video) =====
   // Las fotos se bajan con el token de coordinadora recién cuando
   // aparecen en pantalla, para no descargar todo de una.
@@ -2203,6 +2344,7 @@
     if (!galeriaGrupoId && grupos.length) galeriaGrupoId = grupos[0].id;
     mostrarStep(7);
     renderGaleria();
+    cargarPopurriAdmin().then(renderGaleria);
   }
 
   function cerrarGaleria() {
@@ -2222,13 +2364,20 @@
     document.getElementById('galeriaFiltros').innerHTML = grupos.map(g => {
       const delGrupo = todosMiembros.filter(m => m.grupo_id === g.id);
       return `<button class="galeria-chip ${g.id === galeriaGrupoId ? 'activo' : ''}" onclick="elegirGrupoGaleria('${g.id}')">${g.nombre} · ${delGrupo.filter(conFotos).length}/${delGrupo.length}</button>`;
-    }).join('');
+    }).join('') + `<button class="galeria-chip ${galeriaGrupoId === '__popurri' ? 'activo' : ''}" onclick="elegirGrupoGaleria('__popurri')">📸 Popurrí · ${popurriLista ? popurriLista.length : '…'}</button>`;
 
     const celda = (url, etiqueta) => url
       ? `<div class="galeria-foto" data-url="${url}" onclick="verFotoGaleria(this)"><span>…</span><span class="galeria-etiqueta">${etiqueta}</span></div>`
       : `<div class="galeria-foto falta">Falta<br>${etiqueta === '1er grado' ? etiqueta : etiqueta.toLowerCase()}</div>`;
 
     const miembros = todosMiembros.filter(m => m.grupo_id === galeriaGrupoId);
+    if (galeriaGrupoId === '__popurri') {
+      const L = popurriLista || [];
+      document.getElementById('galeriaLista').innerHTML = !popurriLista
+        ? '<p style="color:#888;font-size:14px;text-align:center">Cargando…</p>'
+        : L.length ? `<div class="galeria-popurri">${L.map(x => celda(x.url, x.quien ? x.quien.replace(/-/g, ' ') : 'Popurrí')).join('')}</div>`
+        : '<p style="color:#888;font-size:14px;text-align:center">Todavía no subieron fotos al popurrí.</p>';
+    } else
     document.getElementById('galeriaLista').innerHTML = miembros.map(m => {
       const a = (todasConfirmaciones[m.id] && todasConfirmaciones[m.id].adjuntos) || {};
       const grupo = [].concat(a.grupo || []);
