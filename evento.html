@@ -217,6 +217,19 @@
   .galeria-popurri .galeria-foto.elegida { outline: 4px solid #F5B301; outline-offset: -4px; }
   .btn-estrella { position: absolute; top: 4px; right: 4px; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 19px; line-height: 34px; cursor: pointer; padding: 0; z-index: 2; }
   .elegida .btn-estrella { background: #F5B301; color: #3a2a00; }
+  /* CARRUSEL EN VIVO (pantalla completa) */
+  .carrusel { position: fixed; inset: 0; background: #0B1030; z-index: 2000; display: none; cursor: none; }
+  .carrusel.activo { display: block; }
+  .carrusel.mostrar-controles { cursor: default; }
+  .carrusel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity 1.2s ease; padding: 2.5vh; box-sizing: border-box; }
+  .carrusel img.visible { opacity: 1; }
+  .carrusel-controles { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; background: rgba(0,0,0,.6); padding: 10px 14px; border-radius: 999px; opacity: 0; transition: opacity .3s; flex-wrap: wrap; justify-content: center; max-width: 94vw; }
+  .carrusel.mostrar-controles .carrusel-controles { opacity: 1; }
+  .carrusel-controles button { background: rgba(255,255,255,.15); color: #fff; border: none; border-radius: 999px; padding: 8px 14px; font: 600 14px Inter, sans-serif; cursor: pointer; }
+  .carrusel-controles button.on { background: #F5B301; color: #3a2a00; }
+  .carrusel-controles span { color: #fff; font: 500 13px Inter, sans-serif; padding: 0 6px; }
+  .carrusel-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font: 600 22px Inter, sans-serif; pointer-events: none; }
+  .btn-carrusel { background: var(--azul); color: #fff; border: none; border-radius: 999px; padding: 8px 16px; font: 700 13px Inter, sans-serif; cursor: pointer; }
   .popurri-barra { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; color: var(--gris-texto); }
   .galeria-popurri .galeria-foto { aspect-ratio: 1; }
 
@@ -934,6 +947,20 @@
     <p class="seccion-subtitulo" id="galeriaResumen"></p>
     <div class="galeria-filtros" id="galeriaFiltros"></div>
     <div id="galeriaLista"></div>
+  </div>
+  <div class="carrusel" id="carrusel">
+    <img id="carruselA" alt=""><img id="carruselB" alt="">
+    <div class="carrusel-msg" id="carruselMsg">Cargando fotos…</div>
+    <div class="carrusel-controles">
+      <button onclick="carruselPaso(-1)" title="Anterior (←)">◀</button>
+      <button id="carruselPlay" onclick="carruselPausa()" title="Pausa (espacio)">⏸</button>
+      <button onclick="carruselPaso(1)" title="Siguiente (→)">▶</button>
+      <span id="carruselInfo"></span>
+      <button id="carruselVel" onclick="carruselVelocidad()">5 s</button>
+      <button id="carruselElegidas" onclick="carruselSoloElegidas()">Solo ★</button>
+      <button id="carruselAzar" class="on" onclick="carruselAleatorio()">Aleatorio</button>
+      <button onclick="cerrarCarrusel()" title="Salir (Esc)">✕ Salir</button>
+    </div>
   </div>
   <div class="galeria-visor" id="galeriaVisor" onclick="this.classList.remove('activo')"><img id="galeriaVisorImg" alt=""></div>
 
@@ -2145,12 +2172,14 @@
     document.getElementById('pinError').style.display = 'none';
   }
 
+  let pinAdmin = null;   // solo en memoria, para renovar el token (dura 4 h) durante el carrusel
   async function verificarPin() {
     const pin = document.getElementById('pinInput').value;
     try {
       const { token, rol } = await obtenerToken(pin);
       if (rol !== 'admin') throw new Error('PIN incorrecto');
       tokenAdmin = token;
+      pinAdmin = pin;
       mostrarStep(6);
       cargarAdmin();
     } catch (e) {
@@ -2374,6 +2403,103 @@
     } catch (e) { popurriLista = []; }
   }
 
+  // ===== CARRUSEL EN VIVO =====
+  // Pantalla completa con las fotos del popurrí, en loop. Cada 2 minutos vuelve
+  // a leer la lista, así las fotos que suban durante la fiesta aparecen solas.
+  const CAR = { lista: [], orden: [], i: -1, pausa: false, seg: 5, soloElegidas: false, azar: true,
+                timer: null, refresco: null, renovar: null, capa: 0, ocultar: null, wake: null };
+  function carruselFotos() {
+    const L = popurriLista || [];
+    return CAR.soloElegidas ? L.filter(x => popurriMarcadas.has(x.path)) : L;
+  }
+  function carruselMezclar() {
+    const urls = carruselFotos().map(x => x.url);
+    CAR.lista = urls; CAR.orden = urls.slice();
+    if (CAR.azar) for (let i = CAR.orden.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [CAR.orden[i], CAR.orden[j]] = [CAR.orden[j], CAR.orden[i]]; }
+    CAR.i = -1;
+  }
+  async function carruselBlob(url) {
+    const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenAdmin}` } });
+    if (!res.ok) throw new Error('foto');
+    let blob = await res.blob();
+    if (/\.hei[cf]$/i.test(url) || /hei[cf]/i.test(blob.type)) { try { blob = await heicAJpg(blob, 'foto.heic'); } catch (e) {} }
+    return URL.createObjectURL(blob);
+  }
+  async function carruselMostrar(delta) {
+    clearTimeout(CAR.timer);
+    const msg = document.getElementById('carruselMsg');
+    if (!CAR.orden.length) { msg.textContent = CAR.soloElegidas ? 'No hay fotos con ★ todavía.' : 'Todavía no hay fotos en el popurrí.'; return; }
+    CAR.i = (CAR.i + delta + CAR.orden.length) % CAR.orden.length;
+    try {
+      const src = await carruselBlob(CAR.orden[CAR.i]);
+      const nueva = document.getElementById(CAR.capa ? 'carruselA' : 'carruselB');
+      const vieja = document.getElementById(CAR.capa ? 'carruselB' : 'carruselA');
+      await new Promise(r => { nueva.onload = r; nueva.onerror = r; nueva.src = src; });
+      nueva.classList.add('visible'); vieja.classList.remove('visible');
+      const viejaSrc = vieja.src;
+      setTimeout(() => { if (viejaSrc && viejaSrc.startsWith('blob:')) URL.revokeObjectURL(viejaSrc); }, 1500);
+      CAR.capa = 1 - CAR.capa;
+      msg.textContent = '';
+      document.getElementById('carruselInfo').textContent = `${CAR.i + 1} / ${CAR.orden.length}`;
+    } catch (e) { console.error(e); }
+    if (!CAR.pausa) CAR.timer = setTimeout(() => carruselMostrar(1), CAR.seg * 1000);
+  }
+  async function abrirCarrusel() {
+    const el = document.getElementById('carrusel');
+    el.classList.add('activo');
+    try { await el.requestFullscreen(); } catch (e) {}
+    try { CAR.wake = await navigator.wakeLock.request('screen'); } catch (e) {}   // que no se apague la pantalla
+    CAR.pausa = false; document.getElementById('carruselPlay').textContent = '⏸';
+    carruselMezclar(); carruselMostrar(1);
+    CAR.refresco = setInterval(async () => {
+      const antes = new Set(CAR.lista);
+      await cargarPopurriAdmin();
+      const nuevas = carruselFotos().map(x => x.url).filter(u => !antes.has(u));
+      if (nuevas.length) { CAR.lista.push(...nuevas); CAR.orden.splice(CAR.i + 1, 0, ...nuevas); }
+    }, 120000);
+    CAR.renovar = setInterval(async () => {
+      if (!pinAdmin) return;
+      try { const t = await obtenerToken(pinAdmin); if (t.rol === 'admin') tokenAdmin = t.token; } catch (e) {}
+    }, 3 * 3600 * 1000);
+    document.addEventListener('keydown', carruselTeclas);
+    const mostrar = () => { el.classList.add('mostrar-controles'); clearTimeout(CAR.ocultar); CAR.ocultar = setTimeout(() => el.classList.remove('mostrar-controles'), 2500); };
+    el.onmousemove = mostrar; el.ontouchstart = mostrar;
+  }
+  function cerrarCarrusel() {
+    clearTimeout(CAR.timer); clearInterval(CAR.refresco); clearInterval(CAR.renovar);
+    document.removeEventListener('keydown', carruselTeclas);
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    try { if (CAR.wake) CAR.wake.release(); } catch (e) {}
+    document.getElementById('carrusel').classList.remove('activo');
+    ['carruselA', 'carruselB'].forEach(id => { const im = document.getElementById(id); im.classList.remove('visible'); im.removeAttribute('src'); });
+  }
+  function carruselTeclas(e) {
+    if (e.key === 'Escape') cerrarCarrusel();
+    else if (e.key === 'ArrowRight') carruselPaso(1);
+    else if (e.key === 'ArrowLeft') carruselPaso(-1);
+    else if (e.key === ' ') { e.preventDefault(); carruselPausa(); }
+  }
+  function carruselPaso(d) { carruselMostrar(d); }
+  function carruselPausa() {
+    CAR.pausa = !CAR.pausa;
+    document.getElementById('carruselPlay').textContent = CAR.pausa ? '▶︎ Seguir' : '⏸';
+    if (CAR.pausa) clearTimeout(CAR.timer); else CAR.timer = setTimeout(() => carruselMostrar(1), CAR.seg * 1000);
+  }
+  function carruselVelocidad() {
+    const op = [3, 5, 8, 12]; CAR.seg = op[(op.indexOf(CAR.seg) + 1) % op.length];
+    document.getElementById('carruselVel').textContent = CAR.seg + ' s';
+  }
+  function carruselSoloElegidas() {
+    CAR.soloElegidas = !CAR.soloElegidas;
+    document.getElementById('carruselElegidas').classList.toggle('on', CAR.soloElegidas);
+    carruselMezclar(); carruselMostrar(1);
+  }
+  function carruselAleatorio() {
+    CAR.azar = !CAR.azar;
+    document.getElementById('carruselAzar').classList.toggle('on', CAR.azar);
+    carruselMezclar(); carruselMostrar(1);
+  }
+
   // ===== GALERÍA DE FOTOS (evento de video) =====
   // Las fotos se bajan con el token de coordinadora recién cuando
   // aparecen en pantalla, para no descargar todo de una.
@@ -2416,7 +2542,7 @@
       const L = popurriLista || [];
       document.getElementById('galeriaLista').innerHTML = !popurriLista
         ? '<p style="color:#888;font-size:14px;text-align:center">Cargando…</p>'
-        : L.length ? `<div class="popurri-barra"><span id="popurriContador"></span><button class="galeria-chip ${popurriSoloElegidas ? 'activo' : ''}" onclick="filtrarElegidas()">${popurriSoloElegidas ? 'Ver todas' : 'Ver solo elegidas'}</button></div>`
+        : L.length ? `<div class="popurri-barra"><span id="popurriContador"></span><button class="btn-carrusel" onclick="abrirCarrusel()">▶ Carrusel</button><button class="galeria-chip ${popurriSoloElegidas ? 'activo' : ''}" onclick="filtrarElegidas()">${popurriSoloElegidas ? 'Ver todas' : 'Ver solo elegidas'}</button></div>`
           + `<div class="galeria-popurri">${L.filter(x => !popurriSoloElegidas || popurriMarcadas.has(x.path)).map(x => {
               const marcada = popurriMarcadas.has(x.path);
               return celda(x.url, x.quien ? x.quien.replace(/-/g, ' ') : 'Popurrí')
