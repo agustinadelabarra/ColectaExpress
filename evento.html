@@ -217,11 +217,21 @@
   .galeria-popurri .galeria-foto.elegida { outline: 4px solid #F5B301; outline-offset: -4px; }
   .btn-estrella { position: absolute; top: 4px; right: 4px; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 19px; line-height: 34px; cursor: pointer; padding: 0; z-index: 2; }
   .elegida .btn-estrella { background: #F5B301; color: #3a2a00; }
+  /* FOTO EN VIVO (familias, el día de la fiesta) */
+  .btn-envivo { display: none; width: 100%; margin-bottom: 16px; border: none; background: linear-gradient(135deg, #6C3BD1, #FF4F8B); color: #fff; border-radius: 14px; padding: 16px 18px; font: 700 17px Inter, sans-serif; cursor: pointer; text-align: left; box-shadow: 0 8px 20px rgba(108,59,209,.3); }
+  .btn-envivo span { display: block; font-size: 13px; font-weight: 500; opacity: .9; margin-top: 3px; }
+  html.pre-video .btn-envivo, body.modo-video .btn-envivo { display: block; }
+  .envivo-estado { display: none; margin: -8px 0 16px; padding: 10px 14px; border-radius: 10px; font: 600 14px Inter, sans-serif; text-align: center; }
+  .envivo-estado.ok { display: block; background: var(--verde-claro); color: var(--verde); }
+  .envivo-estado.subiendo { display: block; background: #F3EEFB; color: var(--azul); }
+  .envivo-estado.error { display: block; background: var(--rojo-claro); color: var(--rojo); }
+  .btn-carrusel-grande { display: none; width: 100%; margin: 0 0 14px; border: none; background: var(--azul); color: #fff; border-radius: 12px; padding: 14px; font: 700 16px Inter, sans-serif; cursor: pointer; }
+
   /* CARRUSEL EN VIVO (pantalla completa) */
   .carrusel { position: fixed; inset: 0; background: #0B1030; z-index: 2000; display: none; cursor: none; }
   .carrusel.activo { display: block; }
   .carrusel.mostrar-controles { cursor: default; }
-  .carrusel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity 1.2s ease; padding: 2.5vh; box-sizing: border-box; }
+  .carrusel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .8s ease; padding: 2.5vh; box-sizing: border-box; }
   .carrusel img.visible { opacity: 1; }
   .carrusel-controles { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; background: rgba(0,0,0,.6); padding: 10px 14px; border-radius: 999px; opacity: 0; transition: opacity .3s; flex-wrap: wrap; justify-content: center; max-width: 94vw; }
   .carrusel.mostrar-controles .carrusel-controles { opacity: 1; }
@@ -743,6 +753,9 @@
   <!-- STEP 1: SELECCIÓN DE GRUPO -->
   <div class="step activo" id="step1">
     <div style="text-align:right;margin-bottom:12px"><button class="btn btn-primario" style="width:auto;padding:7px 16px;font-size:12px" onclick="irAdmin()" id="btnAccesoAdmin">Acceso coordinadoras</button></div>
+    <button class="btn-envivo" onclick="document.getElementById('fileInput-envivo').click()">📸 Sacate una foto en la fiesta<span>Se sube al momento y aparece en la pantalla del salón</span></button>
+    <input type="file" id="fileInput-envivo" accept="image/*,.heic,.heif" capture="environment" style="display:none" onchange="subirFotoEnVivo(event)">
+    <div class="envivo-estado" id="envivoEstado"></div>
     <div class="fiesta-card" style="margin-bottom:20px">
       <p class="fiesta-label" id="fiestaStep1Label">Próximo evento</p>
       <p class="fiesta-nombre" id="fiestaStep1Nombre">Cargando...</p>
@@ -898,6 +911,7 @@
       </div>
     </div>
 
+    <button class="btn-carrusel-grande" id="btnCarruselComite" onclick="abrirCarrusel()">▶ Carrusel de fotos en pantalla completa</button>
     <div class="admin-stats">
       <div class="stat-card">
         <div class="stat-numero" id="statTotal">—</div>
@@ -956,7 +970,7 @@
       <button id="carruselPlay" onclick="carruselPausa()" title="Pausa (espacio)">⏸</button>
       <button onclick="carruselPaso(1)" title="Siguiente (→)">▶</button>
       <span id="carruselInfo"></span>
-      <button id="carruselVel" onclick="carruselVelocidad()">5 s</button>
+      <button id="carruselVel" onclick="carruselVelocidad()">4 s</button>
       <button id="carruselElegidas" onclick="carruselSoloElegidas()">Solo ★</button>
       <button id="carruselAzar" class="on" onclick="carruselAleatorio()">Aleatorio</button>
       <button onclick="cerrarCarrusel()" title="Salir (Esc)">✕ Salir</button>
@@ -1192,9 +1206,20 @@
     cargarMedidores();
   }
 
+  // El botón "Sacate una foto en la fiesta" se muestra solo el día de la fiesta
+  // (28/11 desde las 00:00 hasta el 29/11 a las 12:00, hora de Argentina).
+  // Para probarlo antes: agregar ?envivo=1 al link.
+  const FIESTA_DESDE = new Date('2026-11-28T00:00:00-03:00');
+  const FIESTA_HASTA = new Date('2026-11-29T12:00:00-03:00');
+  function botonEnVivoVisible() {
+    const ahora = new Date();
+    return params.get('envivo') === '1' || (ahora >= FIESTA_DESDE && ahora <= FIESTA_HASTA);
+  }
+
   // Encabezado y textos propios del evento de video
   function aplicarModoVideo() {
     activarGuardaConfeti();
+    if (!botonEnVivoVisible()) document.querySelectorAll('.btn-envivo').forEach(b => b.style.setProperty('display', 'none', 'important'));
     document.getElementById('fiestaStep1Label').style.display = 'none';
     document.getElementById('tituloSeleccion').textContent = 'Seleccioná tu clase';
     document.getElementById('navCambiarGrupo').textContent = '← Cambiar clase';
@@ -2256,6 +2281,7 @@
     lista.innerHTML = html;
 
     document.getElementById('btnGaleria').style.display = esVideo() ? '' : 'none';
+    document.getElementById('btnCarruselComite').style.display = esVideo() ? 'block' : 'none';
     document.getElementById('statTotal').textContent = todosMiembros.length;
     document.getElementById('statSubido').textContent = totalSubido + totalValidado;
     document.getElementById('statValidado').textContent = totalValidado;
@@ -2403,19 +2429,59 @@
     } catch (e) { popurriLista = []; }
   }
 
+  // ===== FOTO EN VIVO =====
+  // Un toque: abre la cámara, sube la foto al popurrí y aparece en el carrusel.
+  async function subirFotoEnVivo(event) {
+    const files = Array.from(event.target.files || []).slice(0, 5);
+    event.target.value = '';
+    if (!files.length) return;
+    const est = document.getElementById('envivoEstado');
+    est.className = 'envivo-estado subiendo'; est.textContent = 'Subiendo foto…';
+    let ok = 0;
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const { file } = await prepararFotoVideo(files[i]);
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        const r = await fetch(`${SUPABASE_URL}/storage/v1/object/comprobantes/${EVENTO_ID}/popurri/${Date.now()}_${i + 1}_fiesta.${ext}`, {
+          method: 'POST',
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${tokenFamilia}`, 'Content-Type': file.type || 'image/jpeg' },
+          body: file
+        });
+        if (r.ok) ok++;
+      } catch (e) { console.error(e); }
+    }
+    if (ok) { est.className = 'envivo-estado ok'; est.textContent = `¡Listo! ${ok > 1 ? 'Tus fotos van' : 'Tu foto va'} a aparecer en la pantalla en un ratito 🎉`; }
+    else { est.className = 'envivo-estado error'; est.textContent = 'No se pudo subir. Revisá la conexión y probá de nuevo.'; }
+    setTimeout(() => { est.className = 'envivo-estado'; }, 8000);
+  }
+
   // ===== CARRUSEL EN VIVO =====
   // Pantalla completa con las fotos del popurrí, en loop. Cada 2 minutos vuelve
   // a leer la lista, así las fotos que suban durante la fiesta aparecen solas.
-  const CAR = { lista: [], orden: [], i: -1, pausa: false, seg: 5, soloElegidas: false, azar: true,
+  const CAR = { lista: [], orden: [], i: -1, pausa: false, seg: 4, soloElegidas: false, azar: true,
                 timer: null, refresco: null, renovar: null, capa: 0, ocultar: null, wake: null };
   function carruselFotos() {
     const L = popurriLista || [];
     return CAR.soloElegidas ? L.filter(x => popurriMarcadas.has(x.path)) : L;
   }
+  // Prioridad a las fotos sacadas en la fiesta (botón "Sacate una foto"):
+  // arranca con las 3 más nuevas y después 1 de cada 3 fotos es de la fiesta.
+  const esDeFiesta = url => /_fiesta\.[a-z0-9]+$/i.test(url);
+  const tiempoFoto = url => +((url.split('/').pop().match(/^(\d+)_/) || [])[1] || 0);
   function carruselMezclar() {
     const urls = carruselFotos().map(x => x.url);
-    CAR.lista = urls; CAR.orden = urls.slice();
-    if (CAR.azar) for (let i = CAR.orden.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [CAR.orden[i], CAR.orden[j]] = [CAR.orden[j], CAR.orden[i]]; }
+    CAR.lista = urls;
+    const fiesta = urls.filter(esDeFiesta).sort((a, b) => tiempoFoto(b) - tiempoFoto(a));
+    const resto = urls.filter(u => !esDeFiesta(u));
+    if (CAR.azar) for (let i = resto.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [resto[i], resto[j]] = [resto[j], resto[i]]; }
+    const orden = fiesta.slice(0, 3);
+    let f = orden.length % (fiesta.length || 1);
+    resto.forEach((u, i) => {
+      orden.push(u);
+      if (fiesta.length && i % 2 === 1) { orden.push(fiesta[f]); f = (f + 1) % fiesta.length; }
+    });
+    if (!resto.length) orden.push(...fiesta.slice(3));
+    CAR.orden = orden;
     CAR.i = -1;
   }
   async function carruselBlob(url) {
@@ -2447,6 +2513,7 @@
   async function abrirCarrusel() {
     const el = document.getElementById('carrusel');
     el.classList.add('activo');
+    if (!popurriLista) { document.getElementById('carruselMsg').textContent = 'Cargando fotos…'; await cargarPopurriAdmin(); }
     try { await el.requestFullscreen(); } catch (e) {}
     try { CAR.wake = await navigator.wakeLock.request('screen'); } catch (e) {}   // que no se apague la pantalla
     CAR.pausa = false; document.getElementById('carruselPlay').textContent = '⏸';
@@ -2456,7 +2523,7 @@
       await cargarPopurriAdmin();
       const nuevas = carruselFotos().map(x => x.url).filter(u => !antes.has(u));
       if (nuevas.length) { CAR.lista.push(...nuevas); CAR.orden.splice(CAR.i + 1, 0, ...nuevas); }
-    }, 120000);
+    }, 60000);
     CAR.renovar = setInterval(async () => {
       if (!pinAdmin) return;
       try { const t = await obtenerToken(pinAdmin); if (t.rol === 'admin') tokenAdmin = t.token; } catch (e) {}
@@ -2486,7 +2553,7 @@
     if (CAR.pausa) clearTimeout(CAR.timer); else CAR.timer = setTimeout(() => carruselMostrar(1), CAR.seg * 1000);
   }
   function carruselVelocidad() {
-    const op = [3, 5, 8, 12]; CAR.seg = op[(op.indexOf(CAR.seg) + 1) % op.length];
+    const op = [2, 3, 4, 6, 8]; CAR.seg = op[(op.indexOf(CAR.seg) + 1) % op.length];
     document.getElementById('carruselVel').textContent = CAR.seg + ' s';
   }
   function carruselSoloElegidas() {
